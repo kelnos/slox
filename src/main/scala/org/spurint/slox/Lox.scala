@@ -25,7 +25,7 @@ object Lox extends App {
     }
   }
 
-  private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Expr] = {
+  private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Stmt]] = {
     RecursiveDescentParser(tokens).swap.map { err =>
       val actual = err.actual.headOption.map(_.lexeme).getOrElse("(unknown)")
       val line = err.actual.headOption.map(_.line).getOrElse(-1)
@@ -34,31 +34,31 @@ object Lox extends App {
     }.swap
   }
 
-  private def interpret(expr: Expr): Either[Seq[LoxError], LiteralValue[_]] = {
-    Interpreter(expr).swap.map { err =>
+  private def interpret(stmts: Seq[Stmt]): Either[Seq[LoxError], Unit] = {
+    Interpreter(stmts).swap.map { err =>
       Seq(LoxError(err.token.line, err.message))
     }.swap
   }
 
-  private def run(source: String): Either[Seq[LoxError], LiteralValue[_]] = {
+  private def run(source: String): Either[Seq[LoxError], Unit] = {
     for {
       tokens <- scan(source)
       expr <- parse(tokens)
-      interpretedValue <- interpret(expr)
-    } yield interpretedValue
+      _ <- interpret(expr)
+    } yield ()
   }
 
   private def runFile(path: String): Unit = {
     run(Source.fromFile(path, "UTF-8").mkString) match {
       case Left(errors) => errors.foreach(reportError); sys.exit(1)
-      case Right(lv) => println(lv.value)
+      case Right(_) =>
     }
   }
 
   private def runPrompt(): Unit = {
     print("> ")
     Source.fromInputStream(System.in, Charset.defaultCharset.displayName).getLines().foreach { line =>
-      run(line).fold(_.foreach(reportError), lv => println(lv.value))
+      run(line).fold(_.foreach(reportError), _ => ())
       print("> ")
     }
   }

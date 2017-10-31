@@ -61,7 +61,7 @@ object Token {
     case object CommentStart extends Type { val lexeme = "/*" }
     case object CommentEnd extends Type { val lexeme = "*/" }
 
-    case object Eof extends Type { val lexeme = "" }
+    case object Eof extends Type { val lexeme = "EOF" }
 
     case class Invalid(lexeme: scala.Predef.String) extends Type { override val literal = Some(StringValue(lexeme)) }
   }

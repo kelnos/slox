@@ -5,10 +5,11 @@ import scala.annotation.tailrec
 object RecursiveDescentParser {
   case class ParserError(expected: Seq[Token.Type], actual: Seq[Token])
 
-  def apply(tokens: Seq[Token]): Either[ParserError, Expr] = {
-    expression(tokens).flatMap { case (expr, tail) =>
-      tail.headOption match {
-        case Some(Token(Token.Type.Eof, _, _, _)) => Right(expr)
+  def apply(tokens: Seq[Token]): Either[ParserError, Seq[Stmt]] = {
+    statement(tokens).flatMap { case (stmt, tail) =>
+      tail.toList match {
+        case Token(Token.Type.Eof, _, _, _) :: Nil => Right(Seq(stmt))
+        case _ :: _ => apply(tail).map { nextStmts => stmt +: nextStmts }
         case _ => Left(ParserError(Seq(Token.Type.Eof), tail))
       }
     }
@@ -42,6 +43,33 @@ object RecursiveDescentParser {
       case Some(Token(`type`, _, _, _)) => Right(tokens.tail)
       case _ => Left(ParserError(Seq(`type`), tokens))
     }
+  }
+
+  private def statement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    tokens.headOption match {
+      case Some(token) =>
+        token.`type` match {
+          case Token.Type.Print => printStatement(tokens.tail)
+          case _ => expressionStatement(tokens)
+        }
+      case _ => expressionStatement(tokens)
+    }
+  }
+
+  private def expressionStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    for {
+      res <- expression(tokens)
+      (expression, tail) = res
+      finalTail <- consume(Token.Type.Semicolon, tail)
+    } yield (Stmt.Expression(expression), finalTail)
+  }
+
+  private def printStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    for {
+      res <- expression(tokens)
+      (expression, tail) = res
+      finalTail <- consume(Token.Type.Semicolon, tail)
+    } yield (Stmt.Print(expression), finalTail)
   }
 
   // this is used only for error display, not actual program logic

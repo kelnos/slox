@@ -1,12 +1,43 @@
 package org.spurint.slox
 
 import org.spurint.slox.LiteralValue.{BooleanValue, NilValue, NumberValue, StringValue}
+import scala.annotation.tailrec
 
 object Interpreter {
   case class InterpreterError(token: Token, message: String)
 
-  def apply(expr: Expr): Either[InterpreterError, LiteralValue[_]] = {
-    evaluate(expr)
+  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Unit] = {
+    @tailrec
+    def rec(stmts: Seq[Stmt]): Either[InterpreterError, Unit] = {
+      stmts match {
+        case lastStmt :: Nil => execute(lastStmt)
+        case nextStmt :: moreStmts => execute(nextStmt) match {
+          case Right(_) => rec(moreStmts)
+          case l => l
+        }
+        case Nil => Right(())
+      }
+    }
+    rec(stmts)
+  }
+
+  private def execute(stmt: Stmt): Either[InterpreterError, Unit] = {
+    stmt match {
+      case e: Stmt.Expression => executeExpressionStmt(e)
+      case p: Stmt.Print => executePrintStmt(p)
+    }
+  }
+
+  private def executeExpressionStmt(stmt: Stmt.Expression): Either[InterpreterError, Unit] = {
+    evaluate(stmt.expression).map(_ => ())
+  }
+
+  private def executePrintStmt(stmt: Stmt.Print): Either[InterpreterError, Unit] = {
+    for {
+      value <- evaluate(stmt.expression)
+    } yield {
+      println(value.toString)
+    }
   }
 
   private def evaluate(expr: Expr): Either[InterpreterError, LiteralValue[_]] = {
