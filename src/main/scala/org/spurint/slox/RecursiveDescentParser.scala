@@ -57,8 +57,11 @@ object RecursiveDescentParser {
   @inline
   private def primary(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
     tokens.headOption match {
-      case Some(Token(Token.Type.False | Token.Type.True | Token.Type.Nil | _: Token.Type.Number | _: Token.Type.String, _, literal, _)) =>
-        Right((Expr.Literal(literal), tokens.tail))
+      case Some(token @ Token(Token.Type.False | Token.Type.True | Token.Type.Nil | _: Token.Type.Number | _: Token.Type.String, _, literal, _)) =>
+        literal match {
+          case Some(lit) => Right((Expr.Literal(lit), tokens.tail))
+          case _ => Left(ParserError(Seq(token.`type`), Seq.empty[Token]))
+        }
       case Some(token) if token.`type` == Token.Type.LeftParen =>
         for {
           res <- expression(tokens.tail)

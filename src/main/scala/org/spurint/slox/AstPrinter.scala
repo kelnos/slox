@@ -18,7 +18,7 @@ object ExprAstPrinters {
   implicit val unaryPrinter: AstPrinter[Unary] = (expr: Unary) => parenthesize(expr.operator.lexeme, expr.right)
   implicit val binaryPrinter: AstPrinter[Binary] = (expr: Binary) => parenthesize(expr.operator.lexeme, expr.left, expr.right)
   implicit val groupingPrinter: AstPrinter[Grouping] = (expr: Grouping) => parenthesize("group", expr.expression)
-  implicit val literalPrinter: AstPrinter[Literal] = (expr: Literal) => expr.value.map(v => v.toString).getOrElse("nil")
+  implicit val literalPrinter: AstPrinter[Literal] = (expr: Literal) => expr.value.toString
 
   implicit val genericExprPrinter: AstPrinter[Expr] = {
     case u: Unary => unaryPrinter(u)
