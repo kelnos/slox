@@ -77,6 +77,14 @@ object Interpreter {
         case Token.Type.Plus => Right(StringValue(ls + rs))
         case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on string values"))
       }
+      case (StringValue(ls), _) => operator.`type` match {
+        case Token.Type.Plus => Right(StringValue(ls + right.toString))
+        case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on string values"))
+      }
+      case (_, StringValue(rs)) => operator.`type` match {
+        case Token.Type.Plus => Right(StringValue(left.toString + rs))
+        case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on string values"))
+      }
       case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on non-numeric values"))
     }
   }
