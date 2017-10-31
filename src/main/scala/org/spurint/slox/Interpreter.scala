@@ -68,7 +68,9 @@ object Interpreter {
     (left, right) match {
       case (NumberValue(ln), NumberValue(rn)) => operator.`type` match {
         case Token.Type.Star => Right(NumberValue(ln * rn))
-        case Token.Type.Slash => Right(NumberValue(ln / rn))
+        case Token.Type.Slash =>
+          if (rn == 0) Left(InterpreterError(operator, "Division by zero"))
+          else Right(NumberValue(ln / rn))
         case Token.Type.Plus => Right(NumberValue(ln + rn))
         case Token.Type.Minus => Right(NumberValue(ln - rn))
         case _ => Left(InterpreterError(operator, "Cannot perform arithmetic with this operator"))
