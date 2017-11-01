@@ -83,6 +83,7 @@ object RecursiveDescentParser {
         token.`type` match {
           case Token.Type.Print => printStatement(tokens.tail)
           case Token.Type.LeftBrace => block(tokens.tail)
+          case Token.Type.If => ifStatement(tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
@@ -118,6 +119,25 @@ object RecursiveDescentParser {
       (expression, tail) = res
       finalTail <- consume(Token.Type.Semicolon, tail)
     } yield (Stmt.Print(expression), finalTail)
+  }
+
+  private def ifStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    for {
+      tail1 <- consume(Token.Type.LeftParen, tokens)
+      conditionRes <- expression(tail1)
+      (condition, tail2) = conditionRes
+      tail3 <- consume(Token.Type.RightParen, tail2)
+
+      thenBranchRes <- statement(tail3)
+      (thenBranch, tail4) = thenBranchRes
+
+      elseBranchRes <- tail4.headOption.collectFirst {
+        case Token(Token.Type.Else, _, _, _) => statement(tail4.tail).map { case (stmt, tail) => (Option(stmt), tail) }
+      }.getOrElse(Right(None, tail4))
+      (elseBranch, tail5) = elseBranchRes
+    } yield {
+      (Stmt.If(condition, thenBranch, elseBranch), tail5)
+    }
   }
 
   // this is used only for error display, not actual program logic

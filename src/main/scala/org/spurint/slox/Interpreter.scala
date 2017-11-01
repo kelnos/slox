@@ -31,6 +31,7 @@ object Interpreter {
     stmt match {
       case b: Stmt.Block => executeBlockStmt(b, environment)
       case e: Stmt.Expression => executeExpressionStmt(e, environment)
+      case i: Stmt.If => executeIfStmt(i, environment)
       case p: Stmt.Print => executePrintStmt(p, environment)
       case v: Stmt.Var => executeVarStmt(v, environment)
     }
@@ -45,6 +46,16 @@ object Interpreter {
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
     evaluate(stmt.expression, environment).map { case (_, environment1) => environment1 }
+  }
+
+  private def executeIfStmt(stmt: Stmt.If, environment: Environment): Either[InterpreterError, Environment] = {
+    evaluate(stmt.condition, environment).flatMap { case (conditionResult, environment1) =>
+      if (isTruthy(conditionResult)) {
+        execute(stmt.thenBranch, environment1)
+      } else {
+        stmt.elseBranch.map(execute(_, environment1)).getOrElse(Right(environment1))
+      }
+    }
   }
 
   private def executePrintStmt(stmt: Stmt.Print, environment: Environment): Either[InterpreterError, Environment] = {
