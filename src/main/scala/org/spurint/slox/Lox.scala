@@ -1,6 +1,7 @@
 package org.spurint.slox
 
 import java.nio.charset.Charset
+import org.spurint.slox.interpreter.Interpreter.RuntimeError
 import org.spurint.slox.interpreter.{Environment, Interpreter}
 import org.spurint.slox.parser.{AstPrinter, Expr, RecursiveDescentParser, Stmt}
 import org.spurint.slox.scanner.{Scanner, Token}
@@ -50,8 +51,9 @@ object Lox extends App {
   }
 
   private def interpret(stmts: Seq[Stmt], initialEnvironment: Option[Environment]): Either[Seq[LoxError], Environment] = {
-    Interpreter(stmts, initialEnvironment).leftMap { err =>
-      Seq(LoxError(err.token.line, s"${err.message}: ${err.token.lexeme}"))
+    Interpreter(stmts, initialEnvironment).leftMap {
+      case RuntimeError(token, message) => Seq(LoxError(token.line, s"$message: ${token.lexeme}"))
+      case Interpreter.Return(_, _) => Seq(LoxError(-1, s"BUG: Got Return error outside function call"))
     }
   }
 

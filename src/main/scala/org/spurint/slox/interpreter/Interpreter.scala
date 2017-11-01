@@ -9,7 +9,9 @@ import org.spurint.slox.util._
 import scala.annotation.tailrec
 
 object Interpreter {
-  case class InterpreterError(token: Token, message: String)
+  sealed trait InterpreterError
+  case class RuntimeError(token: Token, message: String) extends InterpreterError
+  case class Return(value: LiteralValue[_], environment: Environment) extends InterpreterError
 
   def apply(stmts: Seq[Stmt], initialEnvironment: Option[Environment] = None): Either[InterpreterError, Environment] = {
     initialEnvironment.map(apply(stmts, _)).getOrElse(apply(stmts))
@@ -39,6 +41,7 @@ object Interpreter {
       case f: Stmt.Function => executeFunctionStmt(f, environment)
       case i: Stmt.If => executeIfStmt(i, environment)
       case p: Stmt.Print => executePrintStmt(p, environment)
+      case r: Stmt.Return => executeReturnStmt(r, environment)
       case v: Stmt.Var => executeVarStmt(v, environment)
       case w: Stmt.While => executeWhileStmt(w, environment)
     }
@@ -83,6 +86,10 @@ object Interpreter {
       println(value.toString)
       environment1
     }
+  }
+
+  private def executeReturnStmt(stmt: Stmt.Return, environment: Environment): Either[InterpreterError, Environment] = {
+    evaluate(stmt.value, environment).flatMap { case (expr, environment1) => Left(Return(expr, environment1)) }
   }
 
   private def executeVarStmt(stmt: Stmt.Var, environment: Environment): Either[InterpreterError, Environment] = {
@@ -135,9 +142,9 @@ object Interpreter {
         case Token.Type.Bang => Right(BooleanValue(!isTruthy(right)) -> environment1)
         case Token.Type.Minus => right match {
           case NumberValue(n) => Right(NumberValue(-n) -> environment1)
-          case _ => Left(InterpreterError(unary.operator, "Cannot negate a non-numeric value"))
+          case _ => Left(RuntimeError(unary.operator, "Cannot negate a non-numeric value"))
         }
-        case _ => Left(InterpreterError(unary.operator, "Cannot perform unary operation with this operator"))
+        case _ => Left(RuntimeError(unary.operator, "Cannot perform unary operation with this operator"))
       }
     }
   }
@@ -171,7 +178,7 @@ object Interpreter {
       case Token.Type.Star | Token.Type.Slash | Token.Type.Plus | Token.Type.Minus =>
         arithmetic(binary, left, operator, right)
       case Token.Type.And | Token.Type.Or => compareBoolean(binary, left, right).map(BooleanValue.apply)
-      case _ => Left(InterpreterError(operator, "Cannot evaluate binary expression joined by this operator"))
+      case _ => Left(RuntimeError(operator, "Cannot evaluate binary expression joined by this operator"))
     }
   }
 
@@ -180,32 +187,32 @@ object Interpreter {
       case (NumberValue(ln), NumberValue(rn)) => operator.`type` match {
         case Token.Type.Star => Right(NumberValue(ln * rn))
         case Token.Type.Slash =>
-          if (rn == 0) Left(InterpreterError(operator, "Division by zero"))
+          if (rn == 0) Left(RuntimeError(operator, "Division by zero"))
           else Right(NumberValue(ln / rn))
         case Token.Type.Plus => Right(NumberValue(ln + rn))
         case Token.Type.Minus => Right(NumberValue(ln - rn))
-        case _ => Left(InterpreterError(operator, "Cannot perform arithmetic with this operator"))
+        case _ => Left(RuntimeError(operator, "Cannot perform arithmetic with this operator"))
       }
       case (StringValue(ls), StringValue(rs)) => operator.`type` match {
         case Token.Type.Plus => Right(StringValue(ls + rs))
-        case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on string values"))
+        case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on string values"))
       }
       case (StringValue(ls), _) => operator.`type` match {
         case Token.Type.Plus => Right(StringValue(ls + right.toString))
-        case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on string values"))
+        case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on string values"))
       }
       case (_, StringValue(rs)) => operator.`type` match {
         case Token.Type.Plus => Right(StringValue(left.toString + rs))
-        case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on string values"))
+        case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on string values"))
       }
-      case _ => Left(InterpreterError(operator, "Cannot perform arithmetic on non-numeric values"))
+      case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on non-numeric values"))
     }
   }
 
   private def compare(binary: Expr.Binary, left: LiteralValue[_], right: LiteralValue[_]): Either[InterpreterError, Int] = {
     (left, right) match {
       case (ln: NumberValue, rn: NumberValue) => Right(ln.value.compare(rn.value))
-      case _ => Left(InterpreterError(binary.operator, "Cannot compare non-numeric values"))
+      case _ => Left(RuntimeError(binary.operator, "Cannot compare non-numeric values"))
     }
   }
 
@@ -214,9 +221,9 @@ object Interpreter {
       case (BooleanValue(lb), BooleanValue(rb)) => binary.operator.`type` match {
         case Token.Type.And => Right(lb && rb)
         case Token.Type.Or => Right(lb || rb)
-        case _ => Left(InterpreterError(binary.operator, "Cannot do boolean comparison with this operator"))
+        case _ => Left(RuntimeError(binary.operator, "Cannot do boolean comparison with this operator"))
       }
-      case _ => Left(InterpreterError(binary.operator, "Cannot perform comparison on non-boolean values"))
+      case _ => Left(RuntimeError(binary.operator, "Cannot perform comparison on non-boolean values"))
     }
   }
 
@@ -236,7 +243,7 @@ object Interpreter {
     environment
       .get(variable.name)
       .map(Right.apply)
-      .getOrElse(Left(InterpreterError(variable.name, s"Undefined variable")))
+      .getOrElse(Left(RuntimeError(variable.name, s"Undefined variable")))
   }
 
   private def evaluateAssign(assign: Expr.Assign, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
@@ -244,7 +251,7 @@ object Interpreter {
       res <- evaluate(assign.value, environment)
       (value, environment1) = res
       environment2 <- environment1.assign(assign.name, value).leftMap { _ =>
-        InterpreterError(assign.name, "Attempt to assign to an undefined variable")
+        RuntimeError(assign.name, "Attempt to assign to an undefined variable")
       }
     } yield {
       value -> environment2
@@ -274,7 +281,7 @@ object Interpreter {
         }
         arguments.flatMap { case (args, argEnvironment) =>
           if (args.length != callee.arity) {
-            Left(InterpreterError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
+            Left(RuntimeError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
           } else {
             val oldScopeId = argEnvironment.id
             val newScopeId = s"call-${callee.name}-${UUID.randomUUID()}"
@@ -286,7 +293,7 @@ object Interpreter {
           }
         }
       case (badCallee, _) =>
-        Left(InterpreterError(call.paren, s"Function callee $badCallee is not callable"))
+        Left(RuntimeError(call.paren, s"Function callee $badCallee is not callable"))
     }
   }
 }

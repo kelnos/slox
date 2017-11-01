@@ -4,6 +4,7 @@ import org.spurint.slox.interpreter.Interpreter.InterpreterError
 import org.spurint.slox.model.LiteralValue.NilValue
 import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.parser.Stmt
+import org.spurint.slox.util._
 
 class LoxFunction(declaration: Stmt.Function) extends LoxCallable {
   override val name: String = declaration.name.lexeme
@@ -15,5 +16,6 @@ class LoxFunction(declaration: Stmt.Function) extends LoxCallable {
     }
     Interpreter(declaration.body, callEnvironment)
       .map((NilValue: LiteralValue[_], _))
+      .recover { case Interpreter.Return(returnValue, returnEnvironment) => returnValue -> returnEnvironment }
   }
 }

@@ -15,6 +15,11 @@ package object util {
       case r @ Right(_) => r.leftCast
     }
 
+    def recover[BB >: B](pf: PartialFunction[A,  BB]): Either[A, BB] = e match {
+      case Left(l) if pf.isDefinedAt(l) => Right(pf(l))
+      case _ => e
+    }
+
     def recoverWith[AA >: A, BB >: B](pf: PartialFunction[A,  Either[AA, BB]]): Either[AA, BB] = e match {
       case Left(l) if pf.isDefinedAt(l) => pf(l)
       case _ => e

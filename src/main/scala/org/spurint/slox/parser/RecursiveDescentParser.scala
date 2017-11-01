@@ -1,6 +1,6 @@
 package org.spurint.slox.parser
 
-import org.spurint.slox.model.LiteralValue.BooleanValue
+import org.spurint.slox.model.LiteralValue.{BooleanValue, NilValue}
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util._
 import scala.annotation.tailrec
@@ -125,6 +125,7 @@ object RecursiveDescentParser {
           case Token.Type.If => ifStatement(tokens.tail)
           case Token.Type.While => whileStatement(tokens.tail)
           case Token.Type.For => forStatement(tokens.tail)
+          case Token.Type.Return => returnStatement(token, tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
@@ -230,6 +231,18 @@ object RecursiveDescentParser {
       val whileLoop = Stmt.While(condition, Stmt.Block(body +: increment.map(Stmt.Expression.apply).toSeq))
       val forBlock = Stmt.Block(initializer.toSeq :+ whileLoop)
       (forBlock, tail5)
+    }
+  }
+
+  private def returnStatement(returnToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    consume(Token.Type.Semicolon, tokens).map { tail =>
+      (Stmt.Return(returnToken, Expr.Literal(NilValue)), tail)
+    }.recoverWith { case _ =>
+      expression(tokens).flatMap { case (returnExpr, tail) =>
+        consume(Token.Type.Semicolon, tail).map { tail1 =>
+          (Stmt.Return(returnToken, returnExpr), tail1)
+        }
+      }
     }
   }
 
