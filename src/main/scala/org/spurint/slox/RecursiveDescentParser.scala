@@ -1,5 +1,6 @@
 package org.spurint.slox
 
+import org.spurint.slox.LiteralValue.BooleanValue
 import scala.annotation.tailrec
 
 object RecursiveDescentParser {
@@ -85,6 +86,7 @@ object RecursiveDescentParser {
           case Token.Type.LeftBrace => block(tokens.tail)
           case Token.Type.If => ifStatement(tokens.tail)
           case Token.Type.While => whileStatement(tokens.tail)
+          case Token.Type.For => forStatement(tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
@@ -106,7 +108,7 @@ object RecursiveDescentParser {
     }
   }
 
-  private def expressionStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+  private def expressionStatement(tokens: Seq[Token]): Either[ParserError, (Stmt.Expression, Seq[Token])] = {
     for {
       res <- expression(tokens)
       (expression, tail) = res
@@ -151,6 +153,45 @@ object RecursiveDescentParser {
       (body, tail4) = bodyRes
     } yield {
       (Stmt.While(condition, body), tail4)
+    }
+  }
+
+  private def forStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    for {
+      tail1 <- consume(Token.Type.LeftParen, tokens)
+
+      initializerRes <- consume(Token.Type.Semicolon, tail1)
+        .map(tail => (None, tail))  // no initializer
+        .recoverWith { case _ =>  // if we didn't find a semicolon, then there's an initializer
+          tail1.headOption
+            .collectFirst { case Token(Token.Type.Var, _, _ , _) => varDeclaration(tail1) }
+            .getOrElse(expressionStatement(tail1))
+            .map { case (stmt, tail) => Some(stmt) -> tail }
+        }
+      (initializer, tail2) = initializerRes
+
+      conditionRes <- consume(Token.Type.Semicolon, tail2)
+        .map(tail => (Expr.Literal(BooleanValue(true)), tail)) // no condition; defaults to 'true'
+        .recoverWith { case _ =>  // if we didn't find a semicolon, then there's a condition
+          expressionStatement(tail2).map { case (stmt, tail) => stmt.expression -> tail }
+        }
+      (condition, tail3) = conditionRes
+
+      incrementRes <- consume(Token.Type.RightParen, tail3)
+        .map(tail => (None, tail))  // no condition
+        .recoverWith { case _ =>  // if we didn't find a semicolon, then there's an increment
+          expression(tail3).flatMap { case (expr, tail) =>
+            consume(Token.Type.RightParen, tail).map(tail1 => Some(expr) -> tail1)
+          }
+        }
+      (increment, tail4) = incrementRes
+
+      bodyRes <- statement(tail4)
+      (body, tail5) = bodyRes
+    } yield {
+      val whileLoop = Stmt.While(condition, Stmt.Block(body +: increment.map(Stmt.Expression.apply).toSeq))
+      val forBlock = Stmt.Block(initializer.toSeq :+ whileLoop)
+      (forBlock, tail5)
     }
   }
 
