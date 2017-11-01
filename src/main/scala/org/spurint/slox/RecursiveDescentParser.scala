@@ -84,6 +84,7 @@ object RecursiveDescentParser {
           case Token.Type.Print => printStatement(tokens.tail)
           case Token.Type.LeftBrace => block(tokens.tail)
           case Token.Type.If => ifStatement(tokens.tail)
+          case Token.Type.While => whileStatement(tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
@@ -137,6 +138,19 @@ object RecursiveDescentParser {
       (elseBranch, tail5) = elseBranchRes
     } yield {
       (Stmt.If(condition, thenBranch, elseBranch), tail5)
+    }
+  }
+
+  private def whileStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    for {
+      tail1 <- consume(Token.Type.LeftParen, tokens)
+      conditionRes <- expression(tail1)
+      (condition, tail2) = conditionRes
+      tail3 <- consume(Token.Type.RightParen, tail2)
+      bodyRes <- statement(tail3)
+      (body, tail4) = bodyRes
+    } yield {
+      (Stmt.While(condition, body), tail4)
     }
   }
 

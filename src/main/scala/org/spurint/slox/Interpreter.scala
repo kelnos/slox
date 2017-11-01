@@ -34,6 +34,7 @@ object Interpreter {
       case i: Stmt.If => executeIfStmt(i, environment)
       case p: Stmt.Print => executePrintStmt(p, environment)
       case v: Stmt.Var => executeVarStmt(v, environment)
+      case w: Stmt.While => executeWhileStmt(w, environment)
     }
   }
 
@@ -78,6 +79,25 @@ object Interpreter {
     } yield {
       environment1.define(stmt.name.lexeme, value)
     }
+  }
+
+  private def executeWhileStmt(stmt: Stmt.While, environment: Environment): Either[InterpreterError, Environment] = {
+    @tailrec
+    def rec(environment: Environment): Either[InterpreterError, Environment] = {
+      evaluate(stmt.condition, environment) match {
+        case Right((conditionResult, environment1)) =>
+          if (isTruthy(conditionResult)) {
+            execute(stmt.body, environment1) match {
+              case Right(environment2) => rec(environment2)
+              case l => l
+            }
+          } else {
+            Right(environment1)
+          }
+        case Left(l) => Left(l)
+      }
+    }
+    rec(environment)
   }
 
   private def evaluate(expr: Expr, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
