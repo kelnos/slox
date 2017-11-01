@@ -279,7 +279,7 @@ object RecursiveDescentParser {
           unary(tokens.tail).map { case (right, tail) =>
             (Expr.Unary(operator, right), tail)
           }
-        case _ => primary(tokens)
+        case _ => call(tokens)
       }
     }
   }
@@ -378,6 +378,57 @@ object RecursiveDescentParser {
             case l => l
           }
         case _ => Right(left, tokens)
+      }
+    }
+  }
+
+  private object call {
+    @inline
+    def apply(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
+      primary(tokens).flatMap { case (expr, tail) => callRec(expr, tail) }
+    }
+
+    @tailrec
+    private def callRec(expr: Expr, tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
+      consume(Token.Type.LeftParen, tokens) match {
+        case Right(tail) =>
+          finishCall(expr, tail) match {
+            case Right((expr1, tail1)) => callRec(expr1, tail1)
+            case l => l
+          }
+        case _ => Right(expr -> tokens)
+      }
+    }
+
+    @inline
+    private def finishCall(callee: Expr, tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
+      tokens.headOption match {
+        case Some(token @ Token(Token.Type.RightParen, _, _, _)) =>
+          Right(Expr.Call(callee, token, Seq.empty[Expr]) -> tokens.tail)
+        case _ =>
+          consumeArguments(Seq.empty[Expr], tokens).flatMap { case (args, tail) =>
+            if (args.length > MAX_CALL_ARGS) {
+              Left(ParserError(Seq(Token.Type.RightParen), tokens)) // FIXME: this gives a not-very-useful error message
+            } else {
+              tail.headOption.collectFirst {
+                case token @ Token(Token.Type.RightParen, _, _, _) => Right(token)
+              }.getOrElse(Left(ParserError(Seq(Token.Type.RightParen), tail))).map { closingParen =>
+                (Expr.Call(callee, closingParen, args), tail.tail)
+              }
+            }
+          }
+      }
+    }
+
+    @tailrec
+    private def consumeArguments(args: Seq[Expr], tokens: Seq[Token]): Either[ParserError, (Seq[Expr], Seq[Token])] = {
+      expression(tokens) match {
+        case Right((arg, tail)) => tail.headOption match {
+          case Some(Token(Token.Type.Comma, _, _, _)) => consumeArguments(args :+ arg, tail.tail)
+          case Some(Token(Token.Type.RightParen, _, _, _)) => Right(args :+ arg, tail)
+          case _ => Left(ParserError(Seq(Token.Type.Comma, Token.Type.RightParen), tail))
+        }
+        case l @ Left(_) => l.rightCast
       }
     }
   }

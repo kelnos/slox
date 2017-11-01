@@ -1,6 +1,8 @@
 package org.spurint
 
 package object slox {
+  val MAX_CALL_ARGS = 8
+
   implicit class EitherRightEnrichments[A, B](val r: Right[A, B]) extends AnyVal {
     def leftCast[C]: Either[C, B] = r.asInstanceOf[Right[C, B]]
   }
