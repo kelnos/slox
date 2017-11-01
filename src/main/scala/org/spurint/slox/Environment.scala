@@ -7,6 +7,11 @@ object Environment {
   case object ScopeError extends ScopeError
   case class UndefinedVariableError(variable: Token)
 
+  lazy val global: Environment = {
+    val env = Environment()
+    native.registerNativeFunctions(env)
+  }
+
   def apply(): Environment = new Environment(Map.empty[String, LiteralValue[_]], enclosing = None)
 }
 

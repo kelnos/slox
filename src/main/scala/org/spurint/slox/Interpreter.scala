@@ -10,7 +10,7 @@ object Interpreter {
     initialEnvironment.map(apply(stmts, _)).getOrElse(apply(stmts))
   }
 
-  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Environment] = apply(stmts, Environment())
+  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Environment] = apply(stmts, Environment.global.pushScope())
 
   def apply(stmts: Seq[Stmt], initialEnvironment: Environment): Either[InterpreterError, Environment] = {
     @tailrec
