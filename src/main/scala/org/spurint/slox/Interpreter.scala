@@ -23,10 +23,18 @@ object Interpreter {
 
   private def execute(stmt: Stmt, environment: Environment): Either[InterpreterError, Environment] = {
     stmt match {
+      case b: Stmt.Block => executeBlockStmt(b, environment)
       case e: Stmt.Expression => executeExpressionStmt(e, environment)
       case p: Stmt.Print => executePrintStmt(p, environment)
       case v: Stmt.Var => executeVarStmt(v, environment)
     }
+  }
+
+  private def executeBlockStmt(block: Stmt.Block, environment: Environment): Either[InterpreterError, Environment] = {
+    block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope())) {
+      case (Right(curEnvironment), stmt) => execute(stmt, curEnvironment)
+      case (l, _) => l
+    }.map(_ => environment)
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {

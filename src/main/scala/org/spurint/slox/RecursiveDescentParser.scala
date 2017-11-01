@@ -82,9 +82,25 @@ object RecursiveDescentParser {
       case Some(token) =>
         token.`type` match {
           case Token.Type.Print => printStatement(tokens.tail)
+          case Token.Type.LeftBrace => block(tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
+    }
+  }
+
+  @tailrec
+  private def block(tokens: Seq[Token], statements: Seq[Stmt] = Seq.empty[Stmt]): Either[ParserError, (Stmt, Seq[Token])] = {
+    tokens.headOption match {
+      case Some(token) =>
+        token.`type` match {
+          case Token.Type.RightBrace => Right(Stmt.Block(statements) -> tokens.tail)
+          case _ => declaration(tokens) match {
+            case Right((decl, tail)) => block(tail, statements :+ decl)
+            case l => l
+          }
+        }
+      case _ => Left(ParserError(Seq(Token.Type.RightBrace), Seq.empty[Token]))
     }
   }
 
