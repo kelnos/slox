@@ -47,7 +47,7 @@ object RecursiveDescentParser {
 
   private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     val result = tokens.headOption match {
-      case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens.tail)
+      case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens)
       case _ => statement(tokens)
     }
 
@@ -60,20 +60,21 @@ object RecursiveDescentParser {
   }
 
   private def varDeclaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
-    tokens.headOption match {
-      case Some(token @ Token(Token.Type.Identifier, _, _ , _)) =>
+    consume(Token.Type.Var, tokens).flatMap(tail => tail.headOption.collectFirst {
+      case token @ Token(Token.Type.Identifier, _, _, _) =>
         for {
-          res <- tokens.tail.headOption match {
-            case Some(Token(Token.Type.Equal, _, _, _)) =>
-              expression(tokens.tail.tail).map { case (value, tail) => Option(value) -> tail }
-            case _ =>
-              Right(None -> tokens.tail)
+          initializerRes <- consume(Token.Type.Equal, tail.tail) match {
+            case Left(_) =>
+              // no assignment for this declaration
+              Right(None -> tail.tail)
+            case Right(tail2) =>
+              // got an '=', so we have an assignment
+              expression(tail2).map { case (value, tail3) => Option(value) -> tail3 }
           }
-          (initializer, tail) = res
-          finalTail <- consume(Token.Type.Semicolon, tail)
-        } yield (Stmt.Var(token, initializer), finalTail)
-      case _ => Left(ParserError(Seq(Token.Type.Identifier), tokens))
-    }
+          (maybeInitializer, tail3) = initializerRes
+          finalTail <- consume(Token.Type.Semicolon, tail3)
+        } yield (Stmt.Var(token, maybeInitializer), finalTail)
+    }.getOrElse(Left(ParserError(Seq(Token.Type.Identifier), tokens))))
   }
 
   private def statement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
