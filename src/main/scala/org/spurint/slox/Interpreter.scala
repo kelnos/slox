@@ -1,6 +1,6 @@
 package org.spurint.slox
 
-import org.spurint.slox.LiteralValue.{BooleanValue, NilValue, NumberValue, StringValue}
+import org.spurint.slox.LiteralValue._
 import scala.annotation.tailrec
 
 object Interpreter {
@@ -42,10 +42,7 @@ object Interpreter {
     block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope())) {
       case (Right(curEnvironment), stmt) => execute(stmt, curEnvironment)
       case (l, _) => l
-    }.flatMap(innerEnvironment => innerEnvironment.popScope().leftMap(_ => InterpreterError(
-      Token(Token.Type.Invalid, "", None, -1),
-      "BUG: Attempt to pop scope but we're already at the root"
-    )))
+    }.flatMap(innerEnvironment => innerEnvironment.popScope().leftMap(_ => interpreterScopeError))
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
@@ -109,6 +106,7 @@ object Interpreter {
       case v: Expr.Variable => evaluateVariable(v, environment).map(_ -> environment)
       case a: Expr.Assign => evaluateAssign(a, environment)
       case l: Expr.Logical => evaluateLogical(l, environment)
+      case c: Expr.Call => evaluateCall(c, environment)
     }
   }
 
@@ -246,4 +244,37 @@ object Interpreter {
       }
     }
   }
+
+  private def evaluateCall(call: Expr.Call, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+    evaluate(call.callee, environment).flatMap {
+      case (CallableValue(callee), environment1) =>
+        val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], Environment)] = Right(Seq.empty -> environment1)
+        val arguments = call.arguments.foldLeft(initialValue) {
+          case (Right((argValues, curEnvironment)), arg) => evaluate(arg, curEnvironment).map {
+            case (argValue, curEnvironment1) =>
+              (argValues :+ argValue) -> curEnvironment1
+          }
+          case (l, _) => l
+        }
+        arguments.flatMap { case (args, argEnvironment) =>
+          if (args.length != callee.arity) {
+            Left(InterpreterError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
+          } else {
+            val callEnvironment = argEnvironment.pushScope()
+            callee.call(callEnvironment, args).flatMap { returnValue =>
+              callEnvironment.popScope()
+                .leftMap(_ => interpreterScopeError)
+                .map(env => returnValue -> env)
+            }
+          }
+        }
+      case (badCallee, _) =>
+        Left(InterpreterError(call.paren, s"Function callee $badCallee is not callable"))
+    }
+  }
+
+  private val interpreterScopeError = InterpreterError(
+      Token(Token.Type.Invalid, "", None, -1),
+      "BUG: Attempt to pop scope but we're already at the root"
+    )
 }
