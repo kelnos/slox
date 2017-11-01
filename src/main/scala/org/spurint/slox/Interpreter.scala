@@ -38,7 +38,7 @@ object Interpreter {
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
-    evaluate(stmt.expression, environment).map(_ => environment)
+    evaluate(stmt.expression, environment).map { case (_, environment1) => environment1 }
   }
 
   private def executePrintStmt(stmt: Stmt.Print, environment: Environment): Either[InterpreterError, Environment] = {
