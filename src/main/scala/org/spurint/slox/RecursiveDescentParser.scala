@@ -179,7 +179,7 @@ object RecursiveDescentParser {
   }
 
   private def assignment(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
-    equality(tokens).flatMap { case (expr, tail) =>
+    or(tokens).flatMap { case (expr, tail) =>
       tail.headOption match {
         case Some(Token(Token.Type.Equal, _, _, _)) =>
           assignment(tail.tail).flatMap { case (value, finalTail) =>
@@ -190,6 +190,24 @@ object RecursiveDescentParser {
           }
         case _ => Right((expr, tail))
       }
+    }
+  }
+
+  private def or(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
+    and(tokens).flatMap { case (expr, tail) =>
+      tail.headOption.collectFirst {
+        case operator @ Token(Token.Type.Or, _, _, _) =>
+          and(tail.tail).map { case (right, tail1) => (Expr.Logical(expr, operator, right), tail1) }
+      }.getOrElse(Right(expr, tail))
+    }
+  }
+
+  private def and(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
+    equality(tokens).flatMap { case (expr, tail) =>
+      tail.headOption.collectFirst {
+        case operator @ Token(Token.Type.And, _, _, _) =>
+          equality(tail.tail).map { case (right, tail1) => (Expr.Logical(expr, operator, right), tail1) }
+      }.getOrElse(Right(expr, tail))
     }
   }
 

@@ -20,6 +20,7 @@ object ExprAstPrinters {
   implicit val binaryPrinter: AstPrinter[Binary] = (expr: Binary) => parenthesize(expr.operator.lexeme, expr.left, expr.right)
   implicit val groupingPrinter: AstPrinter[Grouping] = (expr: Grouping) => parenthesize("group", expr.expression)
   implicit val literalPrinter: AstPrinter[Literal] = (expr: Literal) => expr.value.toString
+  implicit val logicalPrinter: AstPrinter[Logical] = (expr: Logical) => parenthesize(expr.operator.lexeme, expr.left, expr.right)
   implicit val variablePrinter: AstPrinter[Variable] = (expr: Variable) => expr.name.lexeme
 
   implicit val genericExprPrinter: AstPrinter[Expr] = {
@@ -28,6 +29,7 @@ object ExprAstPrinters {
     case b: Binary => binaryPrinter(b)
     case g: Grouping => groupingPrinter(g)
     case l: Literal => literalPrinter(l)
+    case l: Logical => logicalPrinter(l)
     case v: Variable => variablePrinter(v)
   }
 }

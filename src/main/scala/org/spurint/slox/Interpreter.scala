@@ -85,6 +85,7 @@ object Interpreter {
       case g: Expr.Grouping => evaluateGrouping(g, environment)
       case v: Expr.Variable => evaluateVariable(v, environment).map(_ -> environment)
       case a: Expr.Assign => evaluateAssign(a, environment)
+      case l: Expr.Logical => evaluateLogical(l, environment)
     }
   }
 
@@ -210,6 +211,16 @@ object Interpreter {
       }.swap
     } yield {
       value -> environment2
+    }
+  }
+
+  private def evaluateLogical(logical: Expr.Logical, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+    evaluate(logical.left, environment).flatMap { case (left, environment1) =>
+      logical.operator.`type` match {
+        case Token.Type.Or if isTruthy(left) => Right(left -> environment1)
+        case Token.Type.And if !isTruthy(left) => Right(left -> environment1)
+        case _ => evaluate(logical.right, environment1)
+      }
     }
   }
 }
