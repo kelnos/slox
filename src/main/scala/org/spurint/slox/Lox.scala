@@ -6,6 +6,17 @@ import scala.io.Source
 object Lox extends App {
   case class LoxError(line: Int, message: String)
 
+  private def strForTokenType(`type`: Token.Type): String = {
+    `type` match {
+      case clt: Token.ConstLexemeType => s"'${clt.lexeme}'"
+      case Token.Type.Identifier => "[identifier]"
+      case Token.Type.String => "[string]"
+      case Token.Type.Number => "[number]"
+      case Token.Type.SingleLineComment => "[single line comment]"
+      case Token.Type.Invalid => "[invalid token]"
+    }
+  }
+
   private def reportError(err: LoxError): Unit = {
     System.err.println(s"ERROR:${err.line}: ${err.message}")
   }
@@ -17,9 +28,9 @@ object Lox extends App {
 
   private def scan(source: String): Either[Seq[LoxError], Seq[Token]] = {
     val tokens = Scanner(source)
-    val invalidTokens = tokens.collect { case t @ Token(Token.Type.Invalid(_), _, _, _) => t }
+    val invalidTokens = tokens.collect { case t @ Token(Token.Type.Invalid, _, _, _) => t }
     if (invalidTokens.nonEmpty) {
-      Left(invalidTokens.map(token => LoxError(token.line, s"Invalid token: ${token.literal}")))
+      Left(invalidTokens.map(token => LoxError(token.line, s"Invalid token: ${token.lexeme}")))
     } else {
       Right(tokens)
     }
@@ -27,9 +38,9 @@ object Lox extends App {
 
   private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Stmt]] = {
     RecursiveDescentParser(tokens).swap.map { err =>
-      val actual = err.actual.headOption.map(_.lexeme).getOrElse("(unknown)")
+      val actual = err.actual.headOption.map(t => strForTokenType(t.`type`)).getOrElse("(unknown)")
       val line = err.actual.headOption.map(_.line).getOrElse(-1)
-      val expected = err.expected.map(_.lexeme).mkString(", ")
+      val expected = err.expected.map(strForTokenType).mkString(", ")
       Seq(LoxError(line, s"Unexpected token $actual; expected $expected"))
     }.swap
   }

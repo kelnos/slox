@@ -1,5 +1,7 @@
 package org.spurint.slox
 
+import org.spurint.slox.LiteralValue._
+import org.spurint.slox.Token.{ConstLexemeType, ConstLiteralType}
 import scala.util.matching.Regex
 import scala.util.parsing.combinator.RegexParsers
 
@@ -8,7 +10,7 @@ object Scanner extends RegexParsers {
   override val whiteSpace: Regex = s"$whiteSpaceStr".r
   override val skipWhitespace: Boolean = true
 
-  private def simpleTokens = Seq(
+  private val constLexemeTokenList = Seq[ConstLexemeType](
     Token.Type.CommentStart,
     Token.Type.CommentEnd,
     Token.Type.LeftParen,
@@ -33,39 +35,63 @@ object Scanner extends RegexParsers {
     Token.Type.And,
     Token.Type.Class,
     Token.Type.Else,
-    Token.Type.False,
     Token.Type.Fun,
     Token.Type.For,
     Token.Type.If,
-    Token.Type.Nil,
     Token.Type.Or,
     Token.Type.Print,
     Token.Type.Return,
     Token.Type.Super,
     Token.Type.This,
-    Token.Type.True,
     Token.Type.Var,
     Token.Type.While,
-  ).map(t => t.lexeme ^^ (_ => t)).reduce((accum, next) => accum | next)
+  )
 
-  private def identifier = "[a-zA-Z_][a-zA-Z_0-9]*".r ^^ Token.Type.Identifier.apply
-  private def string = """"[^"]*"""".r ^^ Token.Type.String.apply
-  private def number = "[0-9]+(?:\\.[0-9]+)?".r ^^ (num => Token.Type.Number(num))
-  private def singleLineComment = "//.*$".r ^^ Token.Type.SingleLineComment.apply
+  private val constLiteralTokenList = Seq[ConstLiteralType](
+    Token.Type.False,
+    Token.Type.Nil,
+    Token.Type.True,
+  )
 
-  private def invalidIdentifier = "[0-9]+[a-zA-Z_][a-zA-Z_0-9]*".r ^^ Token.Type.Invalid.apply
-  private def invalid = "\\S+".r ^^ Token.Type.Invalid.apply
+  private def simpleTokens(lineNum: Int) = constLexemeTokenList
+    .map(t => t.lexeme ^^ (_ => Token(t, t.lexeme, literal = None, lineNum)))
+    .reduce((accum, next) => accum | next)
 
-  private def tokens: Parser[List[Token.Type]] = {
-    phrase(rep(string | singleLineComment | simpleTokens | invalidIdentifier | number | identifier | invalid))
+  private def simpleLiteralTokens(lineNum: Int) = constLiteralTokenList
+    .map(t => t.lexeme ^^ (_ => Token(t, t.lexeme, Some(t.literal), lineNum)))
+    .reduce((accum, next) => accum | next)
+
+  private def identifier(lineNum: Int) =
+    "[a-zA-Z_][a-zA-Z_0-9]*".r ^^ (iden => Token(Token.Type.Identifier, iden, Some(IdentifierValue(iden)), lineNum))
+
+  private def string(lineNum: Int) =
+    """"[^"]*"""".r ^^ (s => Token(Token.Type.String, s, Some(StringValue(s.substring(1, s.length - 1))), lineNum))
+
+  private def number(lineNum: Int) =
+    "[0-9]+(?:\\.[0-9]+)?".r ^^ (num => Token(Token.Type.Number, num, Some(NumberValue(num.toDouble)), lineNum))
+
+  private def singleLineComment(lineNum: Int) =
+    "//.*$".r ^^ (com => Token(Token.Type.SingleLineComment, com, Some(CommentValue(com.substring(2).trim)), lineNum))
+
+  private def invalidIdentifier(lineNum: Int) =
+    "[0-9]+[a-zA-Z_][a-zA-Z_0-9]*".r ^^ (inv => Token(Token.Type.Invalid, inv, None, lineNum))
+
+  private def invalid(lineNum: Int) =
+    "\\S+".r ^^ (inv => Token(Token.Type.Invalid, inv, None, lineNum))
+
+  private def tokens(lineNum: Int): Parser[List[Token]] = {
+    phrase(rep(
+      string(lineNum) | singleLineComment(lineNum) | simpleTokens(lineNum) | simpleLiteralTokens(lineNum) |
+      invalidIdentifier(lineNum) | number(lineNum) | identifier(lineNum) | invalid(lineNum)
+    ))
   }
 
   def apply(source: String): Seq[Token] = {
     source.split("\r\n|\r|\n").zipWithIndex.flatMap { case (line, lineNum) =>
-      parse(tokens, line) match {
-        case NoSuccess(_, _) => Seq(Token(Token.Type.Invalid(line), line, literal = None, lineNum + 1))
-        case Success(result, _) => result.map(_.asToken(lineNum + 1))
+      parse(tokens(lineNum + 1), line) match {
+        case NoSuccess(_, _) => Seq(Token(Token.Type.Invalid, line, literal = None, lineNum + 1))
+        case Success(result, _) => result
       }
-    } :+ Token.Type.Eof.asToken(-1)
+    } :+ Token(Token.Type.Eof, Token.Type.Eof.lexeme, None, -1)
   }
 }

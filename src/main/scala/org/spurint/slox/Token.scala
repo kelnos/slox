@@ -1,69 +1,72 @@
 package org.spurint.slox
 
-import org.spurint.slox.LiteralValue._
+import org.spurint.slox.LiteralValue.{BooleanValue, NilValue}
 
 object Token {
-  sealed trait Type {
-    def lexeme: String
-    def literal: Option[LiteralValue[_]] = None
+  sealed trait Type
 
-    def asToken(lineNum: Int): Token = Token(this, lexeme, literal, lineNum)
+  sealed trait ConstLexemeType extends Type {
+    def lexeme: String
+  }
+
+  sealed trait ConstLiteralType extends ConstLexemeType {
+    def literal: LiteralValue[_]
   }
 
   object Type {
     // Single-character tokens.
-    case object LeftParen extends Type { val lexeme = "(" }
-    case object RightParen extends Type { val lexeme = ")" }
-    case object LeftBrace extends Type { val lexeme = "{" }
-    case object RightBrace extends Type { val lexeme = "}" }
-    case object Comma extends Type { val lexeme = "," }
-    case object Dot extends Type { val lexeme = "." }
-    case object Minus extends Type { val lexeme = "-" }
-    case object Plus extends Type { val lexeme = "+" }
-    case object Semicolon extends Type { val lexeme = ";" }
-    case object Slash extends Type { val lexeme = "/" }
-    case object Star extends Type { val lexeme = "*" }
+    case object LeftParen extends ConstLexemeType { val lexeme = "(" }
+    case object RightParen extends ConstLexemeType { val lexeme = ")" }
+    case object LeftBrace extends ConstLexemeType { val lexeme = "{" }
+    case object RightBrace extends ConstLexemeType { val lexeme = "}" }
+    case object Comma extends ConstLexemeType { val lexeme = "," }
+    case object Dot extends ConstLexemeType { val lexeme = "." }
+    case object Minus extends ConstLexemeType { val lexeme = "-" }
+    case object Plus extends ConstLexemeType { val lexeme = "+" }
+    case object Semicolon extends ConstLexemeType { val lexeme = ";" }
+    case object Slash extends ConstLexemeType { val lexeme = "/" }
+    case object Star extends ConstLexemeType { val lexeme = "*" }
 
     // One or two character tokens.
-    case object Bang extends Type { val lexeme = "!" }
-    case object BangEqual extends Type { val lexeme = "!=" }
-    case object Equal extends Type { val lexeme = "=" }
-    case object EqualEqual extends Type { val lexeme = "==" }
-    case object Greater extends Type { val lexeme = ">" }
-    case object GreaterEqual extends Type { val lexeme = ">=" }
-    case object Less extends Type { val lexeme = "<" }
-    case object LessEqual extends Type { val lexeme = "<=" }
+    case object Bang extends ConstLexemeType { val lexeme = "!" }
+    case object BangEqual extends ConstLexemeType { val lexeme = "!=" }
+    case object Equal extends ConstLexemeType { val lexeme = "=" }
+    case object EqualEqual extends ConstLexemeType { val lexeme = "==" }
+    case object Greater extends ConstLexemeType { val lexeme = ">" }
+    case object GreaterEqual extends ConstLexemeType { val lexeme = ">=" }
+    case object Less extends ConstLexemeType { val lexeme = "<" }
+    case object LessEqual extends ConstLexemeType { val lexeme = "<=" }
 
     // Literals.
-    case class Identifier(lexeme: scala.Predef.String) extends Type { override val literal = Some(IdentifierValue(lexeme)) }
-    case class String(lexeme: scala.Predef.String) extends Type { override val literal = Some(StringValue(lexeme.substring(1, lexeme.length - 1))) }
-    case class Number(lexeme: scala.Predef.String) extends Type { override val literal = Some(NumberValue(lexeme.toDouble)) }
+    case object Identifier extends Type
+    case object String extends Type
+    case object Number extends Type
 
     // Keywords.
-    case object And extends Type { val lexeme = "and" }
-    case object Class extends Type { val lexeme = "class" }
-    case object Else extends Type { val lexeme = "else" }
-    case object False extends Type { val lexeme = "false"; override val literal = Some(BooleanValue(false)) }
-    case object Fun extends Type { val lexeme = "fun" }
-    case object For extends Type { val lexeme = "for" }
-    case object If extends Type { val lexeme = "if" }
-    case object Nil extends Type { val lexeme = "nil"; override val literal = Some(NilValue) }
-    case object Or extends Type { val lexeme = "or" }
-    case object Print extends Type { val lexeme = "print" }
-    case object Return extends Type { val lexeme = "return" }
-    case object Super extends Type { val lexeme = "super" }
-    case object This extends Type { val lexeme = "this" }
-    case object True extends Type { val lexeme = "true"; override val literal = Some(BooleanValue(true)) }
-    case object Var extends Type { val lexeme = "var" }
-    case object While extends Type { val lexeme = "while" }
+    case object And extends ConstLexemeType { val lexeme = "and" }
+    case object Class extends ConstLexemeType { val lexeme = "class" }
+    case object Else extends ConstLexemeType { val lexeme = "else" }
+    case object False extends ConstLiteralType { val lexeme = "false"; val literal = BooleanValue(false) }
+    case object Fun extends ConstLexemeType { val lexeme = "fun" }
+    case object For extends ConstLexemeType { val lexeme = "for" }
+    case object If extends ConstLexemeType { val lexeme = "if" }
+    case object Nil extends ConstLiteralType { val lexeme = "nil"; val literal = NilValue }
+    case object Or extends ConstLexemeType { val lexeme = "or" }
+    case object Print extends ConstLexemeType { val lexeme = "print" }
+    case object Return extends ConstLexemeType { val lexeme = "return" }
+    case object Super extends ConstLexemeType { val lexeme = "super" }
+    case object This extends ConstLexemeType { val lexeme = "this" }
+    case object True extends ConstLiteralType { val lexeme = "true"; val literal = BooleanValue(true) }
+    case object Var extends ConstLexemeType { val lexeme = "var" }
+    case object While extends ConstLexemeType { val lexeme = "while" }
 
-    case class SingleLineComment(lexeme: scala.Predef.String) extends Type { override val literal = Some(CommentValue(lexeme.substring(2).trim)) }
-    case object CommentStart extends Type { val lexeme = "/*" }
-    case object CommentEnd extends Type { val lexeme = "*/" }
+    case object SingleLineComment extends Type
+    case object CommentStart extends ConstLexemeType { val lexeme = "/*" }
+    case object CommentEnd extends ConstLexemeType { val lexeme = "*/" }
 
-    case object Eof extends Type { val lexeme = "EOF" }
+    case object Eof extends ConstLexemeType { val lexeme = "EOF" }
 
-    case class Invalid(lexeme: scala.Predef.String) extends Type { override val literal = Some(StringValue(lexeme)) }
+    case object Invalid extends Type
   }
 }
 
