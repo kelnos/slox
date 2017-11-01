@@ -50,6 +50,7 @@ object RecursiveDescentParser {
 
   private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     val result = tokens.headOption match {
+      case Some(Token(Token.Type.Fun, _, _, _)) => function(tokens.tail)
       case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens)
       case _ => statement(tokens)
     }
@@ -59,6 +60,41 @@ object RecursiveDescentParser {
       result.recoverWith { case err => declaration(synchronize(tokens)) }
     } else {
       result
+    }
+  }
+
+  private object function {
+    def apply(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+      tokens.headOption.collectFirst {
+        case name @ Token(Token.Type.Identifier, _, _, _) =>
+          consume(Token.Type.LeftParen, tokens.tail).flatMap { tail =>
+            consumeParameters(Seq.empty[Token], tail)
+          }.flatMap { case (params, tail) =>
+            if (params.length > MAX_CALL_ARGS) {
+              Left(ParserError(Seq(Token.Type.RightParen), tail)) // FIXME: this gives a not-very-useful error message
+            } else {
+              consume(Token.Type.LeftBrace, tail).flatMap { tail1 =>
+                block(tail1).map { case (body, tail2) =>
+                  (Stmt.Function(name, params, body), tail2)
+                }
+              }
+            }
+          }
+      }.getOrElse(Left(ParserError(Seq(Token.Type.Identifier), tokens)))
+    }
+
+    @tailrec
+    private def consumeParameters(params: Seq[Token], tokens: Seq[Token]): Either[ParserError, (Seq[Token], Seq[Token])] = {
+      tokens.headOption match {
+        case Some(param @ Token(Token.Type.Identifier, _, _, _)) =>
+          tokens.tail.headOption match {
+            case Some(Token(Token.Type.Comma, _, _, _)) => consumeParameters(params :+ param, tokens.tail.tail)
+            case Some(Token(Token.Type.RightParen, _, _, _)) => Right(params :+ param, tokens.tail.tail)
+            case _ => Left(ParserError(Seq(Token.Type.Comma, Token.Type.RightParen), tokens.tail))
+          }
+        case Some(Token(Token.Type.RightParen, _, _, _)) => Right(params, tokens.tail)
+        case _ => Left(ParserError(Seq(Token.Type.Identifier), tokens))
+      }
     }
   }
 
@@ -85,7 +121,7 @@ object RecursiveDescentParser {
       case Some(token) =>
         token.`type` match {
           case Token.Type.Print => printStatement(tokens.tail)
-          case Token.Type.LeftBrace => block(tokens.tail)
+          case Token.Type.LeftBrace => block(tokens.tail).map { case (stmts, tail) => (Stmt.Block(stmts), tail) }
           case Token.Type.If => ifStatement(tokens.tail)
           case Token.Type.While => whileStatement(tokens.tail)
           case Token.Type.For => forStatement(tokens.tail)
@@ -96,14 +132,14 @@ object RecursiveDescentParser {
   }
 
   @tailrec
-  private def block(tokens: Seq[Token], statements: Seq[Stmt] = Seq.empty[Stmt]): Either[ParserError, (Stmt, Seq[Token])] = {
+  private def block(tokens: Seq[Token], statements: Seq[Stmt] = Seq.empty[Stmt]): Either[ParserError, (Seq[Stmt], Seq[Token])] = {
     tokens.headOption match {
       case Some(token) =>
         token.`type` match {
-          case Token.Type.RightBrace => Right(Stmt.Block(statements) -> tokens.tail)
+          case Token.Type.RightBrace => Right(statements -> tokens.tail)
           case _ => declaration(tokens) match {
             case Right((decl, tail)) => block(tail, statements :+ decl)
-            case l => l
+            case l @ Left(_) => l.rightCast
           }
         }
       case _ => Left(ParserError(Seq(Token.Type.RightBrace), Seq.empty[Token]))

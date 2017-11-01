@@ -14,7 +14,7 @@ object Interpreter {
     initialEnvironment.map(apply(stmts, _)).getOrElse(apply(stmts))
   }
 
-  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Environment] = apply(stmts, Environment.global.pushScope())
+  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Environment] = apply(stmts, Environment.global)
 
   def apply(stmts: Seq[Stmt], initialEnvironment: Environment): Either[InterpreterError, Environment] = {
     @tailrec
@@ -35,6 +35,7 @@ object Interpreter {
     stmt match {
       case b: Stmt.Block => executeBlockStmt(b, environment)
       case e: Stmt.Expression => executeExpressionStmt(e, environment)
+      case f: Stmt.Function => executeFunctionStmt(f, environment)
       case i: Stmt.If => executeIfStmt(i, environment)
       case p: Stmt.Print => executePrintStmt(p, environment)
       case v: Stmt.Var => executeVarStmt(v, environment)
@@ -51,6 +52,10 @@ object Interpreter {
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
     evaluate(stmt.expression, environment).map { case (_, environment1) => environment1 }
+  }
+
+  private def executeFunctionStmt(stmt: Stmt.Function, environment: Environment): Either[InterpreterError, Environment] = {
+    Right(environment.define(stmt.name.lexeme, CallableValue(new LoxFunction(stmt))))
   }
 
   private def executeIfStmt(stmt: Stmt.If, environment: Environment): Either[InterpreterError, Environment] = {
