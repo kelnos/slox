@@ -37,18 +37,18 @@ object Lox extends App {
   }
 
   private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Stmt]] = {
-    RecursiveDescentParser(tokens).swap.map { err =>
+    RecursiveDescentParser(tokens).leftMap { err =>
       val actual = err.actual.headOption.map(t => strForTokenType(t.`type`)).getOrElse("(unknown)")
       val line = err.actual.headOption.map(_.line).getOrElse(-1)
       val expected = err.expected.map(strForTokenType).mkString(", ")
       Seq(LoxError(line, s"Unexpected token $actual; expected $expected"))
-    }.swap
+    }
   }
 
   private def interpret(stmts: Seq[Stmt], initialEnvironment: Option[Environment]): Either[Seq[LoxError], Environment] = {
-    Interpreter(stmts, initialEnvironment).swap.map { err =>
+    Interpreter(stmts, initialEnvironment).leftMap { err =>
       Seq(LoxError(err.token.line, s"${err.message}: ${err.token.lexeme}"))
-    }.swap
+    }
   }
 
   private def run(source: String, initialEnvironment: Option[Environment] = None): Either[Seq[LoxError], Environment] = {

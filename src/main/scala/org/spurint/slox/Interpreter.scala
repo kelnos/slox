@@ -42,10 +42,10 @@ object Interpreter {
     block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope())) {
       case (Right(curEnvironment), stmt) => execute(stmt, curEnvironment)
       case (l, _) => l
-    }.flatMap(innerEnvironment => innerEnvironment.popScope().swap.map(_ => InterpreterError(
+    }.flatMap(innerEnvironment => innerEnvironment.popScope().leftMap(_ => InterpreterError(
       Token(Token.Type.Invalid, "", None, -1),
       "BUG: Attempt to pop scope but we're already at the root"
-    )).swap)
+    )))
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
@@ -94,7 +94,7 @@ object Interpreter {
           } else {
             Right(environment1)
           }
-        case Left(l) => Left(l)
+        case l @ Left(_) => l.rightCast
       }
     }
     rec(environment)
@@ -229,9 +229,9 @@ object Interpreter {
     for {
       res <- evaluate(assign.value, environment)
       (value, environment1) = res
-      environment2 <- environment1.assign(assign.name, value).swap.map { _ =>
+      environment2 <- environment1.assign(assign.name, value).leftMap { _ =>
         InterpreterError(assign.name, "Attempt to assign to an undefined variable")
-      }.swap
+      }
     } yield {
       value -> environment2
     }

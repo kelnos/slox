@@ -51,13 +51,12 @@ object RecursiveDescentParser {
       case _ => statement(tokens)
     }
 
-    // FIXME: this won't actually work as expected; we need to somehow propagate up that there was an error
-    /*
-    result.swap.flatMap { err =>
-      declaration(synchronize(tokens)).swap
-    }.swap
-    */
-    result
+    if (false) {
+      // FIXME: this won't actually work as expected; we need to somehow propagate up that there was an error
+      result.recoverWith { case err => declaration(synchronize(tokens)) }
+    } else {
+      result
+    }
   }
 
   private def varDeclaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
