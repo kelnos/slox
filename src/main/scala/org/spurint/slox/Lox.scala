@@ -36,7 +36,7 @@ object Lox extends App {
 
   private def interpret(stmts: Seq[Stmt]): Either[Seq[LoxError], Unit] = {
     Interpreter(stmts).swap.map { err =>
-      Seq(LoxError(err.token.line, err.message))
+      Seq(LoxError(err.token.line, s"${err.message}: ${err.token.lexeme}"))
     }.swap
   }
 

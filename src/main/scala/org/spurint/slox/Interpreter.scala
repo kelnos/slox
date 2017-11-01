@@ -8,55 +8,70 @@ object Interpreter {
 
   def apply(stmts: Seq[Stmt]): Either[InterpreterError, Unit] = {
     @tailrec
-    def rec(stmts: Seq[Stmt]): Either[InterpreterError, Unit] = {
+    def rec(stmts: Seq[Stmt], environment: Environment): Either[InterpreterError, Environment] = {
       stmts match {
-        case lastStmt :: Nil => execute(lastStmt)
-        case nextStmt :: moreStmts => execute(nextStmt) match {
-          case Right(_) => rec(moreStmts)
+        case lastStmt :: Nil => execute(lastStmt, environment)
+        case nextStmt :: moreStmts => execute(nextStmt, environment) match {
+          case Right(environment1) => rec(moreStmts, environment1)
           case l => l
         }
-        case Nil => Right(())
+        case Nil => Right(environment)
       }
     }
-    rec(stmts)
+    rec(stmts, Environment()).map(_ => ())
   }
 
-  private def execute(stmt: Stmt): Either[InterpreterError, Unit] = {
+  private def execute(stmt: Stmt, environment: Environment): Either[InterpreterError, Environment] = {
     stmt match {
-      case e: Stmt.Expression => executeExpressionStmt(e)
-      case p: Stmt.Print => executePrintStmt(p)
+      case e: Stmt.Expression => executeExpressionStmt(e, environment)
+      case p: Stmt.Print => executePrintStmt(p, environment)
+      case v: Stmt.Var => executeVarStmt(v, environment)
     }
   }
 
-  private def executeExpressionStmt(stmt: Stmt.Expression): Either[InterpreterError, Unit] = {
-    evaluate(stmt.expression).map(_ => ())
+  private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
+    evaluate(stmt.expression, environment).map(_ => environment)
   }
 
-  private def executePrintStmt(stmt: Stmt.Print): Either[InterpreterError, Unit] = {
+  private def executePrintStmt(stmt: Stmt.Print, environment: Environment): Either[InterpreterError, Environment] = {
     for {
-      value <- evaluate(stmt.expression)
+      res <- evaluate(stmt.expression, environment)
+      (value, environment1) = res
     } yield {
       println(value.toString)
+      environment1
     }
   }
 
-  private def evaluate(expr: Expr): Either[InterpreterError, LiteralValue[_]] = {
+  private def executeVarStmt(stmt: Stmt.Var, environment: Environment): Either[InterpreterError, Environment] = {
+    for {
+      res <- stmt.initializer.map(evaluate(_, environment)).getOrElse(Right(NilValue -> environment))
+      (value, environment1) = res
+    } yield {
+      environment1.define(stmt.name.lexeme, value)
+    }
+  }
+
+  private def evaluate(expr: Expr, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
     expr match {
-      case l: Expr.Literal => evaluateLiteral(l)
-      case u: Expr.Unary => evaluateUnary(u)
-      case b: Expr.Binary => evaluateBinary(b)
-      case g: Expr.Grouping => evaluateGrouping(g)
+      case l: Expr.Literal => evaluateLiteral(l, environment)
+      case u: Expr.Unary => evaluateUnary(u, environment)
+      case b: Expr.Binary => evaluateBinary(b, environment)
+      case g: Expr.Grouping => evaluateGrouping(g, environment)
+      case v: Expr.Variable => evaluateVariable(v, environment).map(_ -> environment)
+      case a: Expr.Assign => evaluateAssign(a, environment)
     }
   }
 
-  private def evaluateLiteral(literal: Expr.Literal): Either[InterpreterError, LiteralValue[_]] = Right(literal.value)
+  private def evaluateLiteral(literal: Expr.Literal, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] =
+    Right(literal.value -> environment)
 
-  private def evaluateUnary(unary: Expr.Unary): Either[InterpreterError, LiteralValue[_]] = {
-    evaluate(unary.right).flatMap { right =>
+  private def evaluateUnary(unary: Expr.Unary, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+    evaluate(unary.right, environment).flatMap { case (right, environment1) =>
       unary.operator.`type` match {
-        case Token.Type.Bang => Right(BooleanValue(!isTruthy(right)))
+        case Token.Type.Bang => Right(BooleanValue(!isTruthy(right)) -> environment1)
         case Token.Type.Minus => right match {
-          case NumberValue(n) => Right(NumberValue(-n))
+          case NumberValue(n) => Right(NumberValue(-n) -> environment1)
           case _ => Left(InterpreterError(unary.operator, "Cannot negate a non-numeric value"))
         }
         case _ => Left(InterpreterError(unary.operator, "Cannot perform unary operation with this operator"))
@@ -72,11 +87,13 @@ object Interpreter {
     }
   }
 
-  private def evaluateBinary(binary: Expr.Binary): Either[InterpreterError, LiteralValue[_]] = {
+  private def evaluateBinary(binary: Expr.Binary, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
     for {
-      left <- evaluate(binary.left)
-      right <- evaluate(binary.right)
-      value <- evaluateBinary(binary, left, binary.operator, right)
+      res0 <- evaluate(binary.left, environment)
+      (left, environment1) = res0
+      res1 <- evaluate(binary.right, environment1)
+      (right, environment2) = res1
+      value <- evaluateBinary(binary, left, binary.operator, right).map(_ -> environment2)
     } yield value
   }
 
@@ -148,7 +165,26 @@ object Interpreter {
     }
   }
 
-  private def evaluateGrouping(grouping: Expr.Grouping): Either[InterpreterError, LiteralValue[_]] = {
-    evaluate(grouping.expression)
+  private def evaluateGrouping(grouping: Expr.Grouping, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+    evaluate(grouping.expression, environment)
+  }
+
+  private def evaluateVariable(variable: Expr.Variable, environment: Environment): Either[InterpreterError, LiteralValue[_]] = {
+    environment
+      .get(variable.name)
+      .map(Right.apply)
+      .getOrElse(Left(InterpreterError(variable.name, s"Undefined variable")))
+  }
+
+  private def evaluateAssign(assign: Expr.Assign, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+    for {
+      res <- evaluate(assign.value, environment)
+      (value, environment1) = res
+      environment2 <- environment1.assign(assign.name, value).swap.map { _ =>
+        InterpreterError(assign.name, "Attempt to assign to an undefined variable")
+      }.swap
+    } yield {
+      value -> environment2
+    }
   }
 }

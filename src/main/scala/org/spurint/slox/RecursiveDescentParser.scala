@@ -6,7 +6,7 @@ object RecursiveDescentParser {
   case class ParserError(expected: Seq[Token.Type], actual: Seq[Token])
 
   def apply(tokens: Seq[Token]): Either[ParserError, Seq[Stmt]] = {
-    statement(tokens).flatMap { case (stmt, tail) =>
+    declaration(tokens).flatMap { case (stmt, tail) =>
       tail.toList match {
         case Token(Token.Type.Eof, _, _, _) :: Nil => Right(Seq(stmt))
         case _ :: _ => apply(tail).map { nextStmts => stmt +: nextStmts }
@@ -45,6 +45,38 @@ object RecursiveDescentParser {
     }
   }
 
+  private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    val result = tokens.headOption match {
+      case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens.tail)
+      case _ => statement(tokens)
+    }
+
+    // FIXME: this won't actually work as expected; we need to somehow propagate up that there was an error
+    /*
+    result.swap.flatMap { err =>
+      declaration(synchronize(tokens)).swap
+    }.swap
+    */
+    result
+  }
+
+  private def varDeclaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    tokens.headOption match {
+      case Some(token @ Token(Token.Type.Identifier(_), _, _ , _)) =>
+        for {
+          res <- tokens.tail.headOption match {
+            case Some(Token(Token.Type.Equal, _, _, _)) =>
+              expression(tokens.tail.tail).map { case (value, tail) => Option(value) -> tail }
+            case _ =>
+              Right(None -> tokens.tail)
+          }
+          (initializer, tail) = res
+          finalTail <- consume(Token.Type.Semicolon, tail)
+        } yield (Stmt.Var(token, initializer), finalTail)
+      case _ => Left(ParserError(Seq(Token.Type.Identifier("[variable name]")), tokens))
+    }
+  }
+
   private def statement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     tokens.headOption match {
       case Some(token) =>
@@ -79,7 +111,8 @@ object RecursiveDescentParser {
     Token.Type.Nil,
     Token.Type.String("\"[number]\""),
     Token.Type.String("\"[string]\""),
-    Token.Type.LeftParen
+    Token.Type.LeftParen,
+    Token.Type.Identifier("[identifier]"),
   )
 
   @inline
@@ -90,6 +123,8 @@ object RecursiveDescentParser {
           case Some(lit) => Right((Expr.Literal(lit), tokens.tail))
           case _ => Left(ParserError(Seq(token.`type`), Seq.empty[Token]))
         }
+      case Some(token @ Token(Token.Type.Identifier(_), _, _ , _)) =>
+        Right((Expr.Variable(token), tokens.tail))
       case Some(token) if token.`type` == Token.Type.LeftParen =>
         for {
           res <- expression(tokens.tail)
@@ -104,7 +139,22 @@ object RecursiveDescentParser {
 
   @inline
   private def expression(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
-    equality(tokens)
+    assignment(tokens)
+  }
+
+  private def assignment(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
+    equality(tokens).flatMap { case (expr, tail) =>
+      tail.headOption match {
+        case Some(Token(Token.Type.Equal, _, _, _)) =>
+          assignment(tail.tail).flatMap { case (value, finalTail) =>
+            expr match {
+              case v: Expr.Variable => Right((Expr.Assign(v.name, value), finalTail))
+              case _ => Left(ParserError(Seq(Token.Type.Identifier("[variable identifier]")), tail.tail))
+            }
+          }
+        case _ => Right((expr, tail))
+      }
+    }
   }
 
   private object unary {
