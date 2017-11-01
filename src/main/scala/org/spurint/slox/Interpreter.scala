@@ -41,7 +41,10 @@ object Interpreter {
     block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope())) {
       case (Right(curEnvironment), stmt) => execute(stmt, curEnvironment)
       case (l, _) => l
-    }.map(_ => environment)
+    }.flatMap(innerEnvironment => innerEnvironment.popScope().swap.map(_ => InterpreterError(
+      Token(Token.Type.Invalid, "", None, -1),
+      "BUG: Attempt to pop scope but we're already at the root"
+    )).swap)
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {

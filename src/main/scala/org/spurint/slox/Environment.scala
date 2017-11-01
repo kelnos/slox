@@ -17,7 +17,9 @@ class Environment private (values: Map[String, LiteralValue[_]], enclosing: Opti
     if (values.contains(name.lexeme)) {
       Right(new Environment(values + (name.lexeme -> value), enclosing))
     } else {
-      enclosing.map(_.assign(name, value)).getOrElse(Left(UndefinedVariableError(name)))
+      enclosing.map(
+        _.assign(name, value).map(newEnclosing => new Environment(values, Option(newEnclosing)))
+      ).getOrElse(Left(UndefinedVariableError(name)))
     }
   }
 
