@@ -6,7 +6,13 @@ import scala.annotation.tailrec
 object Interpreter {
   case class InterpreterError(token: Token, message: String)
 
-  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Unit] = {
+  def apply(stmts: Seq[Stmt], initialEnvironment: Option[Environment] = None): Either[InterpreterError, Environment] = {
+    initialEnvironment.map(apply(stmts, _)).getOrElse(apply(stmts))
+  }
+
+  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Environment] = apply(stmts, Environment())
+
+  def apply(stmts: Seq[Stmt], initialEnvironment: Environment): Either[InterpreterError, Environment] = {
     @tailrec
     def rec(stmts: Seq[Stmt], environment: Environment): Either[InterpreterError, Environment] = {
       stmts match {
@@ -18,7 +24,7 @@ object Interpreter {
         case Nil => Right(environment)
       }
     }
-    rec(stmts, Environment()).map(_ => ())
+    rec(stmts, initialEnvironment)
   }
 
   private def execute(stmt: Stmt, environment: Environment): Either[InterpreterError, Environment] = {

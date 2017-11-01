@@ -34,18 +34,18 @@ object Lox extends App {
     }.swap
   }
 
-  private def interpret(stmts: Seq[Stmt]): Either[Seq[LoxError], Unit] = {
-    Interpreter(stmts).swap.map { err =>
+  private def interpret(stmts: Seq[Stmt], initialEnvironment: Option[Environment]): Either[Seq[LoxError], Environment] = {
+    Interpreter(stmts, initialEnvironment).swap.map { err =>
       Seq(LoxError(err.token.line, s"${err.message}: ${err.token.lexeme}"))
     }.swap
   }
 
-  private def run(source: String): Either[Seq[LoxError], Unit] = {
+  private def run(source: String, initialEnvironment: Option[Environment] = None): Either[Seq[LoxError], Environment] = {
     for {
       tokens <- scan(source)
-      expr <- parse(tokens)
-      _ <- interpret(expr)
-    } yield ()
+      stmts <- parse(tokens)
+      finalEnvironment <- interpret(stmts, initialEnvironment)
+    } yield finalEnvironment
   }
 
   private def runFile(path: String): Unit = {
@@ -57,10 +57,14 @@ object Lox extends App {
 
   private def runPrompt(): Unit = {
     print("> ")
-    Source.fromInputStream(System.in, Charset.defaultCharset.displayName).getLines().foreach { line =>
-      run(line).fold(_.foreach(reportError), _ => ())
-      print("> ")
-    }
+    Source
+      .fromInputStream(System.in, Charset.defaultCharset.displayName)
+      .getLines()
+      .foldLeft(Option.empty[Environment]) { (env, line) =>
+        val nextEnv = run(line, env).fold({ errs => errs.foreach(reportError); env }, Option.apply)
+        print("> ")
+        nextEnv
+      }
   }
 
   args.length match {
