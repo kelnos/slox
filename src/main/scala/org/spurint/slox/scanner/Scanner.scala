@@ -1,7 +1,7 @@
-package org.spurint.slox
+package org.spurint.slox.scanner
 
-import org.spurint.slox.LiteralValue._
-import org.spurint.slox.Token.{ConstLexemeType, ConstLiteralType}
+import org.spurint.slox.model.LiteralValue._
+import org.spurint.slox.scanner.Token.{ConstLexemeType, ConstLiteralType}
 import scala.util.matching.Regex
 import scala.util.parsing.combinator.RegexParsers
 

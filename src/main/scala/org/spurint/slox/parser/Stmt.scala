@@ -1,4 +1,6 @@
-package org.spurint.slox
+package org.spurint.slox.parser
+
+import org.spurint.slox.scanner.Token
 
 sealed trait Stmt
 

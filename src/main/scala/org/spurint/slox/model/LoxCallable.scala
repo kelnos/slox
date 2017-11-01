@@ -1,6 +1,7 @@
-package org.spurint.slox
+package org.spurint.slox.model
 
-import org.spurint.slox.Interpreter.InterpreterError
+import org.spurint.slox.interpreter.Environment
+import org.spurint.slox.interpreter.Interpreter.InterpreterError
 
 trait LoxCallable {
   def name: String

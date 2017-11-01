@@ -1,4 +1,7 @@
-package org.spurint.slox
+package org.spurint.slox.parser
+
+import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.scanner.Token
 
 sealed trait Expr
 

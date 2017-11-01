@@ -1,8 +1,9 @@
-package org.spurint.slox.native
+package org.spurint.slox.interpreter.native
 
-import org.spurint.slox.Interpreter.InterpreterError
-import org.spurint.slox.LiteralValue.NumberValue
-import org.spurint.slox.{Environment, LiteralValue, LoxCallable}
+import org.spurint.slox.interpreter.Interpreter.InterpreterError
+import org.spurint.slox.interpreter.Environment
+import org.spurint.slox.model.LiteralValue.NumberValue
+import org.spurint.slox.model.{LiteralValue, LoxCallable}
 
 object ClockFunction extends LoxCallable {
   override val name: String = "clock"

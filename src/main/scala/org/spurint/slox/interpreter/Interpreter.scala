@@ -1,6 +1,10 @@
-package org.spurint.slox
+package org.spurint.slox.interpreter
 
-import org.spurint.slox.LiteralValue._
+import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.model.LiteralValue._
+import org.spurint.slox.parser.{Expr, Stmt}
+import org.spurint.slox.scanner.Token
+import org.spurint.slox.util._
 import scala.annotation.tailrec
 
 object Interpreter {

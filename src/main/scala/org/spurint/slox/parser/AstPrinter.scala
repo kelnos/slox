@@ -1,6 +1,6 @@
-package org.spurint.slox
+package org.spurint.slox.parser
 
-import org.spurint.slox.Expr._
+import org.spurint.slox.parser.Expr._
 
 trait AstPrinter[T] {
   def apply(printable: T): String

@@ -1,6 +1,7 @@
-package org.spurint.slox
+package org.spurint.slox.interpreter
 
-import org.spurint.slox.LiteralValue.CallableValue
+import org.spurint.slox.model.LiteralValue.CallableValue
+import org.spurint.slox.model.LoxCallable
 
 package object native {
   private val nativeFunctions = Seq[LoxCallable](

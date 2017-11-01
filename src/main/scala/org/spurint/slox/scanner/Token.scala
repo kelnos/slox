@@ -1,6 +1,7 @@
-package org.spurint.slox
+package org.spurint.slox.scanner
 
-import org.spurint.slox.LiteralValue.{BooleanValue, NilValue}
+import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.model.LiteralValue.{BooleanValue, NilValue}
 
 object Token {
   sealed trait Type

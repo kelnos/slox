@@ -1,4 +1,4 @@
-package org.spurint.slox
+package org.spurint.slox.model
 
 sealed trait LiteralValue[T] {
   def value: T

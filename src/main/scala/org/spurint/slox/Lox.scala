@@ -1,6 +1,10 @@
 package org.spurint.slox
 
 import java.nio.charset.Charset
+import org.spurint.slox.interpreter.{Environment, Interpreter}
+import org.spurint.slox.parser.{AstPrinter, Expr, RecursiveDescentParser, Stmt}
+import org.spurint.slox.scanner.{Scanner, Token}
+import org.spurint.slox.util._
 import scala.io.Source
 
 object Lox extends App {
@@ -22,7 +26,7 @@ object Lox extends App {
   }
 
   private def dumpAst(expr: Expr): Unit = {
-    import ExprAstPrinters._
+    import org.spurint.slox.parser.ExprAstPrinters._
     println(AstPrinter(expr))
   }
 

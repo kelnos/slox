@@ -1,6 +1,8 @@
-package org.spurint.slox
+package org.spurint.slox.interpreter
 
-import org.spurint.slox.Environment.{ScopeError, UndefinedVariableError}
+import org.spurint.slox.interpreter.Environment.{ScopeError, UndefinedVariableError}
+import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.scanner.Token
 
 object Environment {
   sealed trait ScopeError

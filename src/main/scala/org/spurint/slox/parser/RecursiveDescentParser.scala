@@ -1,6 +1,8 @@
-package org.spurint.slox
+package org.spurint.slox.parser
 
-import org.spurint.slox.LiteralValue.BooleanValue
+import org.spurint.slox.model.LiteralValue.BooleanValue
+import org.spurint.slox.scanner.Token
+import org.spurint.slox.util._
 import scala.annotation.tailrec
 
 object RecursiveDescentParser {
