@@ -1,5 +1,6 @@
 package org.spurint.slox.interpreter
 
+import java.util.UUID
 import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.model.LiteralValue._
 import org.spurint.slox.parser.{Expr, Stmt}
@@ -44,10 +45,16 @@ object Interpreter {
   }
 
   private def executeBlockStmt(block: Stmt.Block, environment: Environment): Either[InterpreterError, Environment] = {
-    block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope())) {
+    val oldScopeId = environment.id
+    val newScopeId = s"block-${block.hashCode}-${UUID.randomUUID()}"
+    block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope(newScopeId))) {
       case (Right(curEnvironment), stmt) => execute(stmt, curEnvironment)
       case (l, _) => l
-    }.flatMap(innerEnvironment => innerEnvironment.popScope().leftMap(_ => interpreterScopeError))
+    }.flatMap(
+      innerEnvironment => innerEnvironment.popScopeTo(oldScopeId)
+        .leftMap(interpreterScopeError)
+        .recoverWith { case _ => Right(innerEnvironment) }
+    )
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
@@ -269,11 +276,12 @@ object Interpreter {
           if (args.length != callee.arity) {
             Left(InterpreterError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
           } else {
-            val callEnvironment = argEnvironment.pushScope()
-            callee.call(callEnvironment, args).flatMap { returnValue =>
-              callEnvironment.popScope()
-                .leftMap(_ => interpreterScopeError)
-                .map(env => returnValue -> env)
+            val oldScopeId = argEnvironment.id
+            val newScopeId = s"call-${callee.name}-${UUID.randomUUID()}"
+            callee.call(argEnvironment.pushScope(newScopeId), args).flatMap { case (returnValue, postCallEnvironment) =>
+              postCallEnvironment.popScopeTo(oldScopeId)
+                .leftMap(interpreterScopeError)
+                .map(returnValue -> _)
             }
           }
         }
@@ -281,9 +289,4 @@ object Interpreter {
         Left(InterpreterError(call.paren, s"Function callee $badCallee is not callable"))
     }
   }
-
-  private val interpreterScopeError = InterpreterError(
-      Token(Token.Type.Invalid, "", None, -1),
-      "BUG: Attempt to pop scope but we're already at the root"
-    )
 }

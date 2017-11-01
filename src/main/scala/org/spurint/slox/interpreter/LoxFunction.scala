@@ -9,10 +9,11 @@ class LoxFunction(declaration: Stmt.Function) extends LoxCallable {
   override val name: String = declaration.name.lexeme
   override val arity: Int = declaration.parameters.length
 
-  override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, LiteralValue[_]] = {
-    val callEnvironment = declaration.parameters.zip(arguments).foldLeft(environment.pushScope()) {
+  override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+    val callEnvironment = declaration.parameters.zip(arguments).foldLeft(environment) {
       case (env, (param, arg)) => env.define(param.lexeme, arg)
     }
-    Interpreter(declaration.body, callEnvironment).map(_ => NilValue)
+    Interpreter(declaration.body, callEnvironment)
+      .map((NilValue: LiteralValue[_], _))
   }
 }
