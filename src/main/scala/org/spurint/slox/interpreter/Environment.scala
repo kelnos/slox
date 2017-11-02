@@ -40,6 +40,15 @@ class Environment private (val id: String, private val values: Map[String, Liter
     }
   }
 
+  def assign(name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
+    debug(name, s"Assign ${name.lexeme}=$value recursively (our depth is $depth)")
+    assignHere(name, value).recoverWith { case _ =>
+      enclosing
+        .map(_.assign(name, value).map(newEnclosing => new Environment(id, values, Option(newEnclosing))))
+        .getOrElse(Left(UndefinedVariableError(name)))
+    }
+  }
+
   def assignAt(distance: Int, name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
     debug(name, s"Assign ${name.lexeme}=$value at dist $distance (our depth is $depth)")
     ancestor(distance).map(

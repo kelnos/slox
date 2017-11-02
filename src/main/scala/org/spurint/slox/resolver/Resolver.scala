@@ -7,6 +7,13 @@ import org.spurint.slox.util.LoxLogger
 object Resolver extends LoxLogger {
   case class ResolverError(token: Token, message: String)
 
+  sealed trait FunctionType
+  object FunctionType {
+    case object None extends FunctionType
+    case object Function extends FunctionType
+    case object Method extends FunctionType
+  }
+
   case class State(scopes: List[Map[String, Boolean]] = Nil,
                    locals: Map[Int, Int] = Map.empty[Int, Int])
   {
@@ -53,6 +60,7 @@ object Resolver extends LoxLogger {
   private def resolve(state: State, stmt: Stmt): Either[ResolverError, State] = {
     stmt match {
       case b: Stmt.Block => resolveBlockStmt(state, b)
+      case c: Stmt.Class => resolveClassStmt(state, c)
       case e: Stmt.Expression => resolveExpressionStmt(state, e)
       case f: Stmt.Function => resolveFunctionStmt(state, f)
       case f: Stmt.If => resolveIfStmt(state, f)
@@ -80,6 +88,10 @@ object Resolver extends LoxLogger {
     val result = state.scoped(resolve(_, stmt.statements))
     debug(stmt, s"Leaving block")
     result
+  }
+
+  private def resolveClassStmt(state: State, stmt: Stmt.Class): Either[ResolverError, State] = {
+    Right(state.declare(stmt.name).define(stmt.name))
   }
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {

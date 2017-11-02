@@ -5,7 +5,7 @@ import org.spurint.slox.scanner.Token
 import org.spurint.slox.util._
 import scala.annotation.tailrec
 
-object RecursiveDescentParser {
+object RecursiveDescentParser extends LoxLogger {
   case class ParserError(expected: Seq[Token.Type], actual: Seq[Token])
 
   def apply(tokens: Seq[Token]): Either[ParserError, Seq[Stmt]] = {
@@ -48,8 +48,16 @@ object RecursiveDescentParser {
     }
   }
 
+  private def consume(`type`: Token.Type, tokens: Seq[Token]): Either[ParserError, (Token, Seq[Token])] = {
+    tokens.headOption match {
+      case Some(token @ Token(`type`, _, _, _)) => Right(token -> tokens.tail)
+      case _ => Left(ParserError(Seq(`type`), tokens))
+    }
+  }
+
   private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     val result = tokens.headOption match {
+      case Some(Token(Token.Type.Class, _, _, _)) => classDeclaration(tokens.tail)
       case Some(Token(Token.Type.Fun, _, _, _)) => function(tokens.tail)
       case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens)
       case _ => statement(tokens)
@@ -63,8 +71,38 @@ object RecursiveDescentParser {
     }
   }
 
-  private object function {
+  private object classDeclaration {
     def apply(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+      for {
+        nameRes <- consume(Token.Type.Identifier, tokens)
+        (name, tail1) = nameRes
+        _ = debug(name, s"Found class definition for ${name.lexeme}")
+        tail2 <- discard(Token.Type.LeftBrace, tail1)
+        methodsRes <- classMethods(List.empty[Stmt.Function], tail2)
+        (methods, tail3) = methodsRes
+        _ = debug(methods.lastOption.getOrElse(name), s"Got ${methods.length} methods for class ${name.lexeme}")
+        tail4 <- discard(Token.Type.RightBrace, tail3)
+      } yield (Stmt.Class(name, methods), tail4)
+    }
+
+    @tailrec
+    private def classMethods(functions: List[Stmt.Function], tokens: Seq[Token]): Either[ParserError, (List[Stmt.Function], Seq[Token])] = {
+      tokens.headOption match {
+        case Some(Token(Token.Type.RightBrace, _, _, _)) =>
+          debug("Found end of method list")
+          Right(functions -> tokens)
+        case _ => function(tokens) match {
+          case Right((stmt, tail)) =>
+            debug(stmt, s"Found method ${stmt.name.lexeme}")
+            classMethods(stmt :: functions, tail)
+          case l @ Left(_) => l.rightCast
+        }
+      }
+    }
+  }
+
+  private object function {
+    def apply(tokens: Seq[Token]): Either[ParserError, (Stmt.Function, Seq[Token])] = {
       tokens.headOption.collectFirst {
         case name @ Token(Token.Type.Identifier, _, _, _) =>
           discard(Token.Type.LeftParen, tokens.tail).flatMap { tail =>

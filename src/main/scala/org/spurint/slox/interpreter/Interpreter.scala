@@ -31,6 +31,12 @@ object Interpreter extends LoxLogger {
         .map(newEnv => copy(environment = newEnv))
     }
 
+    def assignVariable(name: Token, value: LiteralValue[_]): Either[InterpreterError, State] = {
+      environment.assign(name, value)
+        .leftMap(_ => RuntimeError(name, "Attempt to assign to an undefined variable"))
+        .map(env => copy(environment = env))
+    }
+
     def pushScope(id: String): State = copy(environment = environment.pushScope(id))
 
     def popScopeTo(id: String): Either[InterpreterError, State] = {
@@ -70,6 +76,7 @@ object Interpreter extends LoxLogger {
   private def execute(stmt: Stmt, state: State): Either[InterpreterError, State] = {
     stmt match {
       case b: Stmt.Block => executeBlockStmt(b, state)
+      case c: Stmt.Class => executeClassStmt(c, state)
       case e: Stmt.Expression => executeExpressionStmt(e, state)
       case f: Stmt.Function => executeFunctionStmt(f, state)
       case i: Stmt.If => executeIfStmt(i, state)
@@ -90,6 +97,12 @@ object Interpreter extends LoxLogger {
     }.flatMap(
       innerState => innerState.popScopeTo(oldScopeId).recoverWith { case _ => Right(innerState) }
     )
+  }
+
+  private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
+    val definedState = state.defineVariable(stmt.name, NilValue)
+    val cls = new LoxClass(stmt.name)
+    definedState.assignVariable(stmt.name, CallableValue(cls))
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, state: State): Either[InterpreterError, State] = {
