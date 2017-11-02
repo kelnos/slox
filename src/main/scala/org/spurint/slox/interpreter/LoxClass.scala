@@ -12,4 +12,6 @@ class LoxClass(nameToken: Token) extends LoxCallable {
   override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
     Left(RuntimeError(nameToken, "Unimplemented"))
   }
+
+  override lazy val toString: String = s"<cls $name>"
 }

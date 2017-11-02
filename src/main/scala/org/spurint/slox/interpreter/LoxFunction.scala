@@ -47,4 +47,6 @@ class LoxFunction(private val declaration: Stmt.Function, closure: Environment, 
         returnValue -> environment.mergeIn(returnEnv)
       }
   }
+
+  override lazy val toString: String = s"<fn $name>"
 }
