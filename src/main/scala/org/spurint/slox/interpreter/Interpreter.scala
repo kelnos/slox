@@ -14,135 +14,166 @@ object Interpreter {
   case class RuntimeError(token: Token, message: String) extends InterpreterError
   case class Return(value: LiteralValue[_], environment: Environment) extends InterpreterError
 
-  def apply(stmts: Seq[Stmt], initialEnvironment: Option[Environment] = None): Either[InterpreterError, Environment] = {
-    initialEnvironment.map(apply(stmts, _)).getOrElse(apply(stmts))
+  case class State(environment: Environment, resolvedLocals: Map[Expr, Int]) {
+    def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue[_]] = {
+      resolvedLocals.get(expr)
+        .map(environment.getAt(_, name.lexeme))
+        .getOrElse(environment.getAtRoot(name.lexeme))
+    }
+
+    def defineVariable(name: String, value: LiteralValue[_]): State = copy(environment = environment.define(name, value))
+
+    def assignVariable(name: Token, expr: Expr, value: LiteralValue[_]): Either[InterpreterError, State] = {
+      resolvedLocals.get(expr)
+        .map(distance => environment.assignAt(distance, name, value))
+        .getOrElse(environment.assignAtRoot(name, value))
+        .leftMap(_ => RuntimeError(name, "Attempt to assign to an undefined variable"))
+        .map(newEnv => copy(environment = newEnv))
+    }
+
+    def pushScope(id: String): State = copy(environment = environment.pushScope(id))
+    def popScopeTo(id: String): Either[InterpreterError, State] = {
+      environment.popScopeTo(id).leftMap(interpreterScopeError).map(env => copy(environment = env))
+    }
+
+    lazy val topEnvironment: Environment = environment.top
   }
 
-  def apply(stmts: Seq[Stmt]): Either[InterpreterError, Environment] = apply(stmts, Environment.global)
+  def apply(stmts: Seq[Stmt],
+            initialEnvironment: Option[Environment] = None,
+            resolvedLocals: Map[Expr, Int] = Map.empty[Expr, Int]): Either[InterpreterError, Environment] =
+  {
+    apply(stmts, State(initialEnvironment.getOrElse(Environment.global), resolvedLocals))
+  }
 
-  def apply(stmts: Seq[Stmt], initialEnvironment: Environment): Either[InterpreterError, Environment] = {
+  def apply(stmts: Seq[Stmt],
+            initialEnvironment: Environment,
+            resolvedLocals: Map[Expr, Int]): Either[InterpreterError, Environment] =
+  {
+    apply(stmts, Option(initialEnvironment), resolvedLocals)
+  }
+
+  private def apply(stmts: Seq[Stmt], initialState: State): Either[InterpreterError, Environment] = {
     @tailrec
-    def rec(stmts: Seq[Stmt], environment: Environment): Either[InterpreterError, Environment] = {
+    def rec(stmts: Seq[Stmt], state: State): Either[InterpreterError, State] = {
       stmts match {
-        case lastStmt :: Nil => execute(lastStmt, environment)
-        case nextStmt :: moreStmts => execute(nextStmt, environment) match {
-          case Right(environment1) => rec(moreStmts, environment1)
+        case lastStmt :: Nil => execute(lastStmt, state)
+        case nextStmt :: moreStmts => execute(nextStmt, state) match {
+          case Right(state1) => rec(moreStmts, state1)
           case l => l
         }
-        case Nil => Right(environment)
+        case Nil => Right(state)
       }
     }
-    rec(stmts, initialEnvironment)
+    rec(stmts, initialState).map(_.environment)
   }
 
-  private def execute(stmt: Stmt, environment: Environment): Either[InterpreterError, Environment] = {
+  private def execute(stmt: Stmt, state: State): Either[InterpreterError, State] = {
     stmt match {
-      case b: Stmt.Block => executeBlockStmt(b, environment)
-      case e: Stmt.Expression => executeExpressionStmt(e, environment)
-      case f: Stmt.Function => executeFunctionStmt(f, environment)
-      case i: Stmt.If => executeIfStmt(i, environment)
-      case p: Stmt.Print => executePrintStmt(p, environment)
-      case r: Stmt.Return => executeReturnStmt(r, environment)
-      case v: Stmt.Var => executeVarStmt(v, environment)
-      case w: Stmt.While => executeWhileStmt(w, environment)
+      case b: Stmt.Block => executeBlockStmt(b, state)
+      case e: Stmt.Expression => executeExpressionStmt(e, state)
+      case f: Stmt.Function => executeFunctionStmt(f, state)
+      case i: Stmt.If => executeIfStmt(i, state)
+      case p: Stmt.Print => executePrintStmt(p, state)
+      case r: Stmt.Return => executeReturnStmt(r, state)
+      case v: Stmt.Var => executeVarStmt(v, state)
+      case w: Stmt.While => executeWhileStmt(w, state)
     }
   }
 
-  private def executeBlockStmt(block: Stmt.Block, environment: Environment): Either[InterpreterError, Environment] = {
-    val oldScopeId = environment.id
+  private def executeBlockStmt(block: Stmt.Block, state: State): Either[InterpreterError, State] = {
+    val oldScopeId = state.environment.id
     val newScopeId = s"block-${block.hashCode}-${UUID.randomUUID()}"
-    block.statements.foldLeft[Either[InterpreterError, Environment]](Right(environment.pushScope(newScopeId))) {
-      case (Right(curEnvironment), stmt) => execute(stmt, curEnvironment)
+    block.statements.foldLeft[Either[InterpreterError, State]](Right(state.pushScope(newScopeId))) {
+      case (Right(curState), stmt) => execute(stmt, curState)
       case (l, _) => l
     }.flatMap(
-      innerEnvironment => innerEnvironment.popScopeTo(oldScopeId)
-        .leftMap(interpreterScopeError)
-        .recoverWith { case _ => Right(innerEnvironment) }
+      innerState => innerState.popScopeTo(oldScopeId).recoverWith { case _ => Right(innerState) }
     )
   }
 
-  private def executeExpressionStmt(stmt: Stmt.Expression, environment: Environment): Either[InterpreterError, Environment] = {
-    evaluate(stmt.expression, environment).map { case (_, environment1) => environment1 }
+  private def executeExpressionStmt(stmt: Stmt.Expression, state: State): Either[InterpreterError, State] = {
+    evaluate(stmt.expression, state).map { case (_, state1) => state1 }
   }
 
-  private def executeFunctionStmt(stmt: Stmt.Function, environment: Environment): Either[InterpreterError, Environment] = {
-    Right(environment.define(stmt.name.lexeme, CallableValue(new LoxFunction(stmt, environment.top))))
+  private def executeFunctionStmt(stmt: Stmt.Function, state: State): Either[InterpreterError, State] = {
+    Right(state.defineVariable(stmt.name.lexeme, CallableValue(new LoxFunction(stmt, state.topEnvironment, state.resolvedLocals))))
   }
 
-  private def executeIfStmt(stmt: Stmt.If, environment: Environment): Either[InterpreterError, Environment] = {
-    evaluate(stmt.condition, environment).flatMap { case (conditionResult, environment1) =>
+  private def executeIfStmt(stmt: Stmt.If, state: State): Either[InterpreterError, State] = {
+    evaluate(stmt.condition, state).flatMap { case (conditionResult, state1) =>
       if (isTruthy(conditionResult)) {
-        execute(stmt.thenBranch, environment1)
+        execute(stmt.thenBranch, state1)
       } else {
-        stmt.elseBranch.map(execute(_, environment1)).getOrElse(Right(environment1))
+        stmt.elseBranch.map(execute(_, state1)).getOrElse(Right(state1))
       }
     }
   }
 
-  private def executePrintStmt(stmt: Stmt.Print, environment: Environment): Either[InterpreterError, Environment] = {
+  private def executePrintStmt(stmt: Stmt.Print, state: State): Either[InterpreterError, State] = {
     for {
-      res <- evaluate(stmt.expression, environment)
-      (value, environment1) = res
+      res <- evaluate(stmt.expression, state)
+      (value, state1) = res
     } yield {
       println(value.toString)
-      environment1
+      state1
     }
   }
 
-  private def executeReturnStmt(stmt: Stmt.Return, environment: Environment): Either[InterpreterError, Environment] = {
-    evaluate(stmt.value, environment).flatMap { case (expr, environment1) => Left(Return(expr, environment1)) }
+  private def executeReturnStmt(stmt: Stmt.Return, state: State): Either[InterpreterError, State] = {
+    evaluate(stmt.value, state).flatMap { case (expr, state1) => Left(Return(expr, state1.environment)) }
   }
 
-  private def executeVarStmt(stmt: Stmt.Var, environment: Environment): Either[InterpreterError, Environment] = {
+  private def executeVarStmt(stmt: Stmt.Var, state: State): Either[InterpreterError, State] = {
     for {
-      res <- stmt.initializer.map(evaluate(_, environment)).getOrElse(Right(NilValue -> environment))
-      (value, environment1) = res
+      res <- stmt.initializer.map(evaluate(_, state)).getOrElse(Right(NilValue -> state))
+      (value, state1) = res
     } yield {
-      environment1.define(stmt.name.lexeme, value)
+      state1.defineVariable(stmt.name.lexeme, value)
     }
   }
 
-  private def executeWhileStmt(stmt: Stmt.While, environment: Environment): Either[InterpreterError, Environment] = {
+  private def executeWhileStmt(stmt: Stmt.While, state: State): Either[InterpreterError, State] = {
     @tailrec
-    def rec(environment: Environment): Either[InterpreterError, Environment] = {
-      evaluate(stmt.condition, environment) match {
-        case Right((conditionResult, environment1)) =>
+    def rec(state: State): Either[InterpreterError, State] = {
+      evaluate(stmt.condition, state) match {
+        case Right((conditionResult, state1)) =>
           if (isTruthy(conditionResult)) {
-            execute(stmt.body, environment1) match {
-              case Right(environment2) => rec(environment2)
+            execute(stmt.body, state1) match {
+              case Right(state2) => rec(state2)
               case l => l
             }
           } else {
-            Right(environment1)
+            Right(state1)
           }
         case l @ Left(_) => l.rightCast
       }
     }
-    rec(environment)
+    rec(state)
   }
 
-  private def evaluate(expr: Expr, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+  private def evaluate(expr: Expr, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
     expr match {
-      case l: Expr.Literal => evaluateLiteral(l, environment)
-      case u: Expr.Unary => evaluateUnary(u, environment)
-      case b: Expr.Binary => evaluateBinary(b, environment)
-      case g: Expr.Grouping => evaluateGrouping(g, environment)
-      case v: Expr.Variable => evaluateVariable(v, environment).map(_ -> environment)
-      case a: Expr.Assign => evaluateAssign(a, environment)
-      case l: Expr.Logical => evaluateLogical(l, environment)
-      case c: Expr.Call => evaluateCall(c, environment)
+      case l: Expr.Literal => evaluateLiteral(l, state)
+      case u: Expr.Unary => evaluateUnary(u, state)
+      case b: Expr.Binary => evaluateBinary(b, state)
+      case g: Expr.Grouping => evaluateGrouping(g, state)
+      case v: Expr.Variable => evaluateVariable(v, state).map(_ -> state)
+      case a: Expr.Assign => evaluateAssign(a, state)
+      case l: Expr.Logical => evaluateLogical(l, state)
+      case c: Expr.Call => evaluateCall(c, state)
     }
   }
 
-  private def evaluateLiteral(literal: Expr.Literal, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] =
-    Right(literal.value -> environment)
+  private def evaluateLiteral(literal: Expr.Literal, state: State): Either[InterpreterError, (LiteralValue[_], State)] =
+    Right(literal.value -> state)
 
-  private def evaluateUnary(unary: Expr.Unary, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
-    evaluate(unary.right, environment).flatMap { case (right, environment1) =>
+  private def evaluateUnary(unary: Expr.Unary, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    evaluate(unary.right, state).flatMap { case (right, state1) =>
       unary.operator.`type` match {
-        case Token.Type.Bang => Right(BooleanValue(!isTruthy(right)) -> environment1)
+        case Token.Type.Bang => Right(BooleanValue(!isTruthy(right)) -> state1)
         case Token.Type.Minus => right match {
-          case NumberValue(n) => Right(NumberValue(-n) -> environment1)
+          case NumberValue(n) => Right(NumberValue(-n) -> state1)
           case _ => Left(RuntimeError(unary.operator, "Cannot negate a non-numeric value"))
         }
         case _ => Left(RuntimeError(unary.operator, "Cannot perform unary operation with this operator"))
@@ -158,13 +189,13 @@ object Interpreter {
     }
   }
 
-  private def evaluateBinary(binary: Expr.Binary, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+  private def evaluateBinary(binary: Expr.Binary, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
     for {
-      res0 <- evaluate(binary.left, environment)
-      (left, environment1) = res0
-      res1 <- evaluate(binary.right, environment1)
-      (right, environment2) = res1
-      value <- evaluateBinary(binary, left, binary.operator, right).map(_ -> environment2)
+      res0 <- evaluate(binary.left, state)
+      (left, state1) = res0
+      res1 <- evaluate(binary.right, state1)
+      (right, state2) = res1
+      value <- evaluateBinary(binary, left, binary.operator, right).map(_ -> state2)
     } yield value
   }
 
@@ -236,55 +267,56 @@ object Interpreter {
     }
   }
 
-  private def evaluateGrouping(grouping: Expr.Grouping, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
-    evaluate(grouping.expression, environment)
+  private def evaluateGrouping(grouping: Expr.Grouping, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    evaluate(grouping.expression, state)
   }
 
-  private def evaluateVariable(variable: Expr.Variable, environment: Environment): Either[InterpreterError, LiteralValue[_]] = {
-    environment
-      .get(variable.name)
+  private def evaluateVariable(variable: Expr.Variable, state: State): Either[InterpreterError, LiteralValue[_]] = {
+    state
+      .lookUpVariable(variable.name, variable)
       .map(Right.apply)
       .getOrElse(Left(RuntimeError(variable.name, s"Undefined variable")))
   }
 
-  private def evaluateAssign(assign: Expr.Assign, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+  private def evaluateAssign(assign: Expr.Assign, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
     for {
-      res <- evaluate(assign.value, environment)
-      (value, environment1) = res
-      environment2 <- environment1.assign(assign.name, value).leftMap { _ =>
+      res <- evaluate(assign.value, state)
+      (value, state1) = res
+      state2 <- state1.assignVariable(assign.name, assign, value).leftMap { _ =>
         RuntimeError(assign.name, "Attempt to assign to an undefined variable")
       }
     } yield {
-      value -> environment2
+      value -> state2
     }
   }
 
-  private def evaluateLogical(logical: Expr.Logical, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
-    evaluate(logical.left, environment).flatMap { case (left, environment1) =>
+  private def evaluateLogical(logical: Expr.Logical, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    evaluate(logical.left, state).flatMap { case (left, state1) =>
       logical.operator.`type` match {
-        case Token.Type.Or if isTruthy(left) => Right(left -> environment1)
-        case Token.Type.And if !isTruthy(left) => Right(left -> environment1)
-        case _ => evaluate(logical.right, environment1)
+        case Token.Type.Or if isTruthy(left) => Right(left -> state1)
+        case Token.Type.And if !isTruthy(left) => Right(left -> state1)
+        case _ => evaluate(logical.right, state1)
       }
     }
   }
 
-  private def evaluateCall(call: Expr.Call, environment: Environment): Either[InterpreterError, (LiteralValue[_], Environment)] = {
-    evaluate(call.callee, environment).flatMap {
-      case (CallableValue(callee), environment1) =>
-        val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], Environment)] = Right(Seq.empty -> environment1)
+  private def evaluateCall(call: Expr.Call, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    evaluate(call.callee, state).flatMap {
+      case (CallableValue(callee), state1) =>
+        val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], State)] = Right(Seq.empty -> state1)
         val arguments = call.arguments.foldLeft(initialValue) {
-          case (Right((argValues, curEnvironment)), arg) => evaluate(arg, curEnvironment).map {
-            case (argValue, curEnvironment1) =>
-              (argValues :+ argValue) -> curEnvironment1
+          case (Right((argValues, curState)), arg) => evaluate(arg, curState).map {
+            case (argValue, curState1) =>
+              (argValues :+ argValue) -> curState1
           }
           case (l, _) => l
         }
-        arguments.flatMap { case (args, argEnvironment) =>
+        arguments.flatMap { case (args, argState) =>
           if (args.length != callee.arity) {
             Left(RuntimeError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
           } else {
-            callee.call(argEnvironment, args)
+            callee.call(argState.environment, args)
+              .map { case (returnValue, returnEnv) => returnValue -> argState.copy(environment = returnEnv) }
           }
         }
       case (badCallee, _) =>

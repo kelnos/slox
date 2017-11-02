@@ -6,6 +6,7 @@ import org.slf4j.{Logger, LoggerFactory}
 import org.spurint.slox.interpreter.Interpreter.RuntimeError
 import org.spurint.slox.interpreter.{Environment, Interpreter}
 import org.spurint.slox.parser.{RecursiveDescentParser, Stmt}
+import org.spurint.slox.resolver.Resolver
 import org.spurint.slox.scanner.{Scanner, Token}
 import org.spurint.slox.util._
 import scala.io.Source
@@ -48,19 +49,32 @@ object Lox extends App with LoxLogger {
     }
   }
 
-  private def interpret(stmts: Seq[Stmt], initialEnvironment: Option[Environment]): Either[Seq[LoxError], Environment] = {
-    Interpreter(stmts, initialEnvironment).leftMap {
+  private def resolve(stmts: Seq[Stmt], initialResolvedLocals: Map[Int, Int]): Either[Seq[LoxError], Map[Int, Int]] = {
+    Resolver(stmts, initialResolvedLocals).leftMap(
+      err => Seq(LoxError(err.token.line, err.message))
+    )
+  }
+
+  private def interpret(stmts: Seq[Stmt],
+                        initialEnvironment: Option[Environment],
+                        resolvedLocals: Map[Int, Int]): Either[Seq[LoxError], Environment] =
+  {
+    Interpreter(stmts, initialEnvironment, resolvedLocals).leftMap {
       case RuntimeError(token, message) => Seq(LoxError(token.line, s"$message: ${token.lexeme}"))
       case Interpreter.Return(_, _) => Seq(LoxError(-1, s"BUG: Got Return error outside function call"))
     }
   }
 
-  private def run(source: String, initialEnvironment: Option[Environment] = None): Either[Seq[LoxError], Environment] = {
+  private def run(source: String,
+                  initialEnvironment: Option[Environment] = None,
+                  initialResolvedLocals: Map[Int, Int] = Map.empty[Int, Int]): Either[Seq[LoxError], (Environment, Map[Int, Int])] =
+  {
     for {
       tokens <- scan(source)
       stmts <- parse(tokens)
-      finalEnvironment <- interpret(stmts, initialEnvironment)
-    } yield finalEnvironment
+      resolvedLocals <- resolve(stmts, initialResolvedLocals)
+      finalEnvironment <- interpret(stmts, initialEnvironment, resolvedLocals)
+    } yield (finalEnvironment, resolvedLocals)
   }
 
   private def runFile(path: String): Unit = {
@@ -75,10 +89,13 @@ object Lox extends App with LoxLogger {
     Source
       .fromInputStream(System.in, Charset.defaultCharset.displayName)
       .getLines()
-      .foldLeft(Option.empty[Environment]) { (env, line) =>
-        val nextEnv = run(line, env).fold({ errs => errs.foreach(reportError); env }, Option.apply)
+      .foldLeft((Option.empty[Environment], Map.empty[Int, Int])) { case ((env, loc), line) =>
+        val nextState = run(line, env, loc).fold(
+          { errs => errs.foreach(reportError); (env, loc) },
+          { case (nextEnv, newLoc) => Option(nextEnv) -> newLoc }
+        )
         print("> ")
-        nextEnv
+        nextState
       }
   }
 
