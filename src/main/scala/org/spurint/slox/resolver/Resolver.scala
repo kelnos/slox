@@ -133,9 +133,11 @@ object Resolver extends LoxLogger {
       case a: Expr.Assign => resolveAssignExpr(state, a)
       case b: Expr.Binary => resolveBinaryExpr(state, b)
       case c: Expr.Call => resolveCallExpr(state, c)
+      case g: Expr.Get => resolveGetExpr(state, g)
       case g: Expr.Grouping => resolveGroupingExpr(state, g)
       case l: Expr.Literal => resolveLiteralExpr(state, l)
       case l: Expr.Logical => resolveLogicalExpr(state, l)
+      case s: Expr.Set => resolveSetExpr(state, s)
       case u: Expr.Unary => resolveUnaryExpr(state, u)
       case v: Expr.Variable => resolveVariableExpr(state, v)
     }
@@ -172,6 +174,10 @@ object Resolver extends LoxLogger {
     )
   }
 
+  private def resolveGetExpr(state: State, expr: Expr.Get): Either[ResolverError, State] = {
+    resolve(state, expr.obj)
+  }
+
   private def resolveGroupingExpr(state: State, expr: Expr.Grouping): Either[ResolverError, State] = {
     resolve(state, expr.expression)
   }
@@ -182,6 +188,10 @@ object Resolver extends LoxLogger {
 
   private def resolveLogicalExpr(state: State, expr: Expr.Logical): Either[ResolverError, State] = {
     resolve(state, expr.left).flatMap(resolve(_, expr.right))
+  }
+
+  private def resolveSetExpr(state: State, expr: Expr.Set): Either[ResolverError, State] = {
+    resolve(state, expr.value).flatMap(resolve(_, expr.obj))
   }
 
   private def resolveUnaryExpr(state: State, stmt: Expr.Unary): Either[ResolverError, State] = {

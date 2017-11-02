@@ -175,6 +175,8 @@ object Interpreter extends LoxLogger {
       case a: Expr.Assign => evaluateAssign(a, state)
       case l: Expr.Logical => evaluateLogical(l, state)
       case c: Expr.Call => evaluateCall(c, state)
+      case g: Expr.Get => evaluateGet(g, state)
+      case s: Expr.Set => evaluateSet(s, state)
     }
   }
 
@@ -277,6 +279,22 @@ object Interpreter extends LoxLogger {
       case (NilValue, NilValue) => true
       case (NilValue, _) => false
       case _ => left.equals(right)
+    }
+  }
+
+  private def evaluateGet(get: Expr.Get, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    evaluate(get.obj, state).flatMap {
+      case (ClassInstanceValue(instance), state1) => instance.get(get.name).map(value => (value, state1))
+      case _ => Left(RuntimeError(get.name, "Only instances have properties."))
+    }
+  }
+
+  private def evaluateSet(set: Expr.Set, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    evaluate(set.obj, state).flatMap {
+      case (ClassInstanceValue(instance), state1) => evaluate(set.value, state1).flatMap {
+        case (value, state2) => instance.set(set.name, value).map(value => (value, state2))
+      }
+      case _ => Left(RuntimeError(set.name, "Only instances have properties."))
     }
   }
 

@@ -1,5 +1,7 @@
 package org.spurint.slox.model
 
+import org.spurint.slox.interpreter.LoxInstance
+
 sealed trait LiteralValue[T] {
   def value: T
 }
@@ -12,6 +14,7 @@ object LiteralValue {
   case class IdentifierValue(value: String) extends LiteralValue[String] { override val toString: String = value }
   case class CommentValue(value: String) extends LiteralValue[String] { override val toString: String = value }
   case class CallableValue(value: LoxCallable) extends LiteralValue[LoxCallable] { override val toString: String = value.toString }
+  case class ClassInstanceValue(value: LoxInstance) extends LiteralValue[LoxInstance] { override val toString: String = value.toString }
 
   private def fmtNumber(number: Double): String = {
     if (number > Long.MaxValue || number < Long.MinValue || number.toLong != number) {

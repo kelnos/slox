@@ -329,6 +329,7 @@ object RecursiveDescentParser extends LoxLogger {
           assignment(tail.tail).flatMap { case (value, finalTail) =>
             expr match {
               case v: Expr.Variable => Right((Expr.Assign(v.name, value), finalTail))
+              case g: Expr.Get => Right((Expr.Set(g.obj, g.name, value), finalTail))
               case _ => Left(ParserError(Seq(Token.Type.Identifier), tail.tail))
             }
           }
@@ -479,11 +480,15 @@ object RecursiveDescentParser extends LoxLogger {
 
     @tailrec
     private def callRec(expr: Expr, tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
-      discard(Token.Type.LeftParen, tokens) match {
-        case Right(tail) =>
-          finishCall(expr, tail) match {
+      tokens.headOption match {
+        case Some(Token(Token.Type.LeftParen, _, _, _)) =>
+          finishCall(expr, tokens.tail) match {
             case Right((expr1, tail1)) => callRec(expr1, tail1)
             case l => l
+          }
+        case Some(Token(Token.Type.Dot, _, _, _)) =>
+          consume(Token.Type.Identifier, tokens.tail).map { case (name, tail1) =>
+            (Expr.Get(expr, name), tail1)
           }
         case _ => Right(expr -> tokens)
       }
