@@ -283,13 +283,7 @@ object Interpreter {
           if (args.length != callee.arity) {
             Left(RuntimeError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
           } else {
-            val oldScopeId = argEnvironment.id
-            val newScopeId = s"call-${callee.name}-${UUID.randomUUID()}"
-            callee.call(argEnvironment.pushScope(newScopeId), args).flatMap { case (returnValue, postCallEnvironment) =>
-              postCallEnvironment.popScopeTo(oldScopeId)
-                .leftMap(interpreterScopeError)
-                .map(returnValue -> _)
-            }
+            callee.call(argEnvironment, args)
           }
         }
       case (badCallee, _) =>
