@@ -42,7 +42,8 @@ object Lox extends App {
   }
 
   private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Stmt]] = {
-    RecursiveDescentParser(tokens).leftMap { err =>
+    val finalTokens = tokens.filterNot(_.`type` == Token.Type.SingleLineComment)
+    RecursiveDescentParser(finalTokens).leftMap { err =>
       val actual = err.actual.headOption.map(t => strForTokenType(t.`type`)).getOrElse("(unknown)")
       val line = err.actual.headOption.map(_.line).getOrElse(-1)
       val expected = err.expected.map(strForTokenType).mkString(", ")
