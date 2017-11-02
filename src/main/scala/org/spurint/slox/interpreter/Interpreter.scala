@@ -7,6 +7,7 @@ import org.spurint.slox.parser.{Expr, Stmt}
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util._
 import scala.annotation.tailrec
+import scala.language.existentials
 
 object Interpreter {
   sealed trait InterpreterError

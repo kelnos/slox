@@ -3,7 +3,7 @@ package org.spurint.slox
 import java.nio.charset.Charset
 import org.spurint.slox.interpreter.Interpreter.RuntimeError
 import org.spurint.slox.interpreter.{Environment, Interpreter}
-import org.spurint.slox.parser.{AstPrinter, Expr, RecursiveDescentParser, Stmt}
+import org.spurint.slox.parser.{RecursiveDescentParser, Stmt}
 import org.spurint.slox.scanner.{Scanner, Token}
 import org.spurint.slox.util._
 import scala.io.Source
@@ -24,11 +24,6 @@ object Lox extends App {
 
   private def reportError(err: LoxError): Unit = {
     System.err.println(s"ERROR:${err.line}: ${err.message}")
-  }
-
-  private def dumpAst(expr: Expr): Unit = {
-    import org.spurint.slox.parser.ExprAstPrinters._
-    println(AstPrinter(expr))
   }
 
   private def scan(source: String): Either[Seq[LoxError], Seq[Token]] = {
