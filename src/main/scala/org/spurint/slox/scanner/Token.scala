@@ -2,6 +2,7 @@ package org.spurint.slox.scanner
 
 import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.model.LiteralValue.{BooleanValue, NilValue}
+import org.spurint.slox.util.{HasIdentifier, HasLineInfo}
 
 object Token {
   sealed trait Type
@@ -71,4 +72,6 @@ object Token {
   }
 }
 
-case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue[_]], line: Int)
+case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue[_]], line: Int) extends HasLineInfo with HasIdentifier {
+  val id: String = lexeme
+}

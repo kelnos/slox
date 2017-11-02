@@ -9,22 +9,22 @@ import org.spurint.slox.util._
 import scala.annotation.tailrec
 import scala.language.existentials
 
-object Interpreter {
+object Interpreter extends LoxLogger {
   sealed trait InterpreterError
   case class RuntimeError(token: Token, message: String) extends InterpreterError
   case class Return(value: LiteralValue[_], environment: Environment) extends InterpreterError
 
-  case class State(environment: Environment, resolvedLocals: Map[Expr, Int]) {
+  case class State(environment: Environment, resolvedLocals: Map[Int, Int]) {
     def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue[_]] = {
-      resolvedLocals.get(expr)
-        .map(environment.getAt(_, name.lexeme))
-        .getOrElse(environment.getAtRoot(name.lexeme))
+      resolvedLocals.get(System.identityHashCode(expr))
+        .map(environment.getAt(_, name))
+        .getOrElse(environment.getAtRoot(name))
     }
 
-    def defineVariable(name: String, value: LiteralValue[_]): State = copy(environment = environment.define(name, value))
+    def defineVariable(name: Token, value: LiteralValue[_]): State = copy(environment = environment.define(name, value))
 
     def assignVariable(name: Token, expr: Expr, value: LiteralValue[_]): Either[InterpreterError, State] = {
-      resolvedLocals.get(expr)
+      resolvedLocals.get(System.identityHashCode(expr))
         .map(distance => environment.assignAt(distance, name, value))
         .getOrElse(environment.assignAtRoot(name, value))
         .leftMap(_ => RuntimeError(name, "Attempt to assign to an undefined variable"))
@@ -32,23 +32,22 @@ object Interpreter {
     }
 
     def pushScope(id: String): State = copy(environment = environment.pushScope(id))
+
     def popScopeTo(id: String): Either[InterpreterError, State] = {
       environment.popScopeTo(id).leftMap(interpreterScopeError).map(env => copy(environment = env))
     }
-
-    lazy val topEnvironment: Environment = environment.top
   }
 
   def apply(stmts: Seq[Stmt],
             initialEnvironment: Option[Environment] = None,
-            resolvedLocals: Map[Expr, Int] = Map.empty[Expr, Int]): Either[InterpreterError, Environment] =
+            resolvedLocals: Map[Int, Int] = Map.empty[Int, Int]): Either[InterpreterError, Environment] =
   {
     apply(stmts, State(initialEnvironment.getOrElse(Environment.global), resolvedLocals))
   }
 
   def apply(stmts: Seq[Stmt],
             initialEnvironment: Environment,
-            resolvedLocals: Map[Expr, Int]): Either[InterpreterError, Environment] =
+            resolvedLocals: Map[Int, Int]): Either[InterpreterError, Environment] =
   {
     apply(stmts, Option(initialEnvironment), resolvedLocals)
   }
@@ -84,6 +83,7 @@ object Interpreter {
   private def executeBlockStmt(block: Stmt.Block, state: State): Either[InterpreterError, State] = {
     val oldScopeId = state.environment.id
     val newScopeId = s"block-${block.hashCode}-${UUID.randomUUID()}"
+    debug(block, s"Executing block $newScopeId")
     block.statements.foldLeft[Either[InterpreterError, State]](Right(state.pushScope(newScopeId))) {
       case (Right(curState), stmt) => execute(stmt, curState)
       case (l, _) => l
@@ -97,7 +97,7 @@ object Interpreter {
   }
 
   private def executeFunctionStmt(stmt: Stmt.Function, state: State): Either[InterpreterError, State] = {
-    Right(state.defineVariable(stmt.name.lexeme, CallableValue(new LoxFunction(stmt, state.topEnvironment, state.resolvedLocals))))
+    Right(state.defineVariable(stmt.name, CallableValue(new LoxFunction(stmt, state.environment, state.resolvedLocals))))
   }
 
   private def executeIfStmt(stmt: Stmt.If, state: State): Either[InterpreterError, State] = {
@@ -129,7 +129,7 @@ object Interpreter {
       res <- stmt.initializer.map(evaluate(_, state)).getOrElse(Right(NilValue -> state))
       (value, state1) = res
     } yield {
-      state1.defineVariable(stmt.name.lexeme, value)
+      state1.defineVariable(stmt.name, value)
     }
   }
 
@@ -301,6 +301,7 @@ object Interpreter {
   }
 
   private def evaluateCall(call: Expr.Call, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    debug(call, s"Calling function ${call.callee}")
     evaluate(call.callee, state).flatMap {
       case (CallableValue(callee), state1) =>
         val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], State)] = Right(Seq.empty -> state1)

@@ -8,14 +8,24 @@ object Resolver extends LoxLogger {
   case class ResolverError(token: Token, message: String)
 
   case class State(scopes: List[Map[String, Boolean]] = Nil,
-                   locals: Map[Expr, Int] = Map.empty[Expr, Int])
+                   locals: Map[Int, Int] = Map.empty[Int, Int])
   {
-    def beginScope(): State = copy(scopes = Map.empty[String, Boolean] :: scopes)
-    def endScope(): State = copy(scopes = scopes.tail)
+    def beginScope(): State = {
+      debug(s"Beginning scope ${scopes.length + 1}")
+      copy(scopes = Map.empty[String, Boolean] :: scopes)
+    }
+
+    def endScope(): State = {
+      debug(s"Ending scope ${scopes.length}")
+      copy(scopes = scopes.tail)
+    }
+
     def scoped(f: State => Either[ResolverError, State]): Either[ResolverError, State] = f(beginScope()).map(_.endScope())
 
     def declare(name: Token): State = addVar(name, ready = false)
+
     def define(name: Token): State = addVar(name, ready = true)
+
     private def addVar(name: Token, ready: Boolean): State = {
       scopes match {
         case Nil =>
@@ -27,10 +37,10 @@ object Resolver extends LoxLogger {
       }
     }
 
-    def resolve(expr: Expr, depth: Int): State = copy(locals = locals + (expr -> depth))
+    def resolve(expr: Expr, depth: Int): State = copy(locals = locals + (System.identityHashCode(expr) -> depth))
   }
 
-  def apply(statements: Seq[Stmt], initialResolvedLocals: Map[Expr, Int] = Map.empty[Expr, Int]): Either[ResolverError, Map[Expr, Int]] = {
+  def apply(statements: Seq[Stmt], initialResolvedLocals: Map[Int, Int] = Map.empty[Int, Int]): Either[ResolverError, Map[Int, Int]] = {
     resolve(State(locals = initialResolvedLocals), statements).map(_.locals)
   }
 
@@ -54,16 +64,22 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveFunction(state: State, stmt: Stmt.Function): Either[ResolverError, State] = {
-    state.scoped { functionState =>
+    debug(stmt, s"Entering function ${stmt.name.lexeme}")
+    val result = state.scoped { functionState =>
       val parametersState = stmt.parameters.foldLeft(functionState)(
         (state, token) => state.declare(token).define(token)
       )
       resolve(parametersState, stmt.body)
     }
+    debug(stmt, s"Leaving function ${stmt.name.lexeme}")
+    result
   }
 
   private def resolveBlockStmt(state: State, stmt: Stmt.Block): Either[ResolverError, State] = {
-    state.scoped(resolve(_, stmt.statements))
+    debug(stmt, s"Entering block ")
+    val result = state.scoped(resolve(_, stmt.statements))
+    debug(stmt, s"Leaving block")
+    result
   }
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {
@@ -114,11 +130,18 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveLocal(state: State, expr: Expr, name: Token): Either[ResolverError, State] = {
-    Right(state.scopes.zipWithIndex.reverse.collectFirst {
-      case (scope, idx) if scope.contains(name.lexeme) => idx
-    }.map(
-      idx => state.resolve(expr, state.scopes.length - 1 - idx)
-    ).getOrElse(state))
+    Right(state.scopes.reverse.zipWithIndex.reverse.collectFirst {
+      case (scope, idx) if scope.contains(name.lexeme) =>
+        debug(name, s"Found local var ${name.lexeme} in scope ${idx + 1}")
+        idx
+    }.map({ idx =>
+      val depth = state.scopes.length - 1 - idx
+      debug(name, s"Marking ${name.lexeme} resolved at depth $depth for ${expr.getClass.getSimpleName} ${System.identityHashCode(expr)}")
+      state.resolve(expr, depth)
+    }).getOrElse {
+      debug(name, s"Failed to find var ${name.lexeme}; assuming it's global (scope depth is ${state.scopes.length})")
+      state
+    })
   }
 
   private def resolveAssignExpr(state: State, expr: Expr.Assign): Either[ResolverError, State] = {

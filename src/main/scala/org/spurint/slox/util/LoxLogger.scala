@@ -4,7 +4,7 @@ import java.util.Locale
 import org.slf4j.LoggerFactory
 
 trait LoxLogger {
-  private val logger = LoggerFactory.getLogger(
+  protected val logger = LoggerFactory.getLogger(
   "(?<!^)[A-Z]".r
     .replaceAllIn(getClass.getSimpleName, m => "-" + m.group(0))
     .toLowerCase(Locale.US)

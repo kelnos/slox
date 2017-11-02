@@ -9,6 +9,6 @@ package object native {
   )
 
   def registerNativeFunctions(environment: Environment): Environment = {
-    nativeFunctions.foldLeft(environment)((env, func) => env.define(func.name, CallableValue(func)))
+    nativeFunctions.foldLeft(environment)((env, func) => env.define(func, CallableValue(func)))
   }
 }
