@@ -65,7 +65,7 @@ object Interpreter {
   }
 
   private def executeFunctionStmt(stmt: Stmt.Function, environment: Environment): Either[InterpreterError, Environment] = {
-    Right(environment.define(stmt.name.lexeme, CallableValue(new LoxFunction(stmt))))
+    Right(environment.define(stmt.name.lexeme, CallableValue(new LoxFunction(stmt, environment.top))))
   }
 
   private def executeIfStmt(stmt: Stmt.If, environment: Environment): Either[InterpreterError, Environment] = {

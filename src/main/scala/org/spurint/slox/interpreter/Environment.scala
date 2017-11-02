@@ -16,7 +16,7 @@ object Environment {
   def apply(id: String): Environment = new Environment(id, Map.empty[String, LiteralValue[_]], enclosing = None)
 }
 
-class Environment private (val id: String, values: Map[String, LiteralValue[_]], enclosing: Option[Environment]) {
+class Environment private (val id: String, private val values: Map[String, LiteralValue[_]], enclosing: Option[Environment]) {
   def define(name: String, value: LiteralValue[_]): Environment = {
     new Environment(id, values + (name -> value), enclosing)
   }
@@ -46,4 +46,8 @@ class Environment private (val id: String, values: Map[String, LiteralValue[_]],
       enclosing.map(_.popScopeTo(id)).getOrElse(Left(ScopeError(Option(id))))
     }
   }
+
+  def push(environment: Environment): Environment = new Environment(environment.id, environment.values, Some(this))
+
+  lazy val top: Environment = new Environment(id, values, enclosing = None)
 }
