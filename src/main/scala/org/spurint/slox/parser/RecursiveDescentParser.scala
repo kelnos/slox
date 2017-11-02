@@ -41,7 +41,7 @@ object RecursiveDescentParser {
     }
   }
 
-  private def consume(`type`: Token.Type, tokens: Seq[Token]): Either[ParserError, Seq[Token]] = {
+  private def discard(`type`: Token.Type, tokens: Seq[Token]): Either[ParserError, Seq[Token]] = {
     tokens.headOption match {
       case Some(Token(`type`, _, _, _)) => Right(tokens.tail)
       case _ => Left(ParserError(Seq(`type`), tokens))
@@ -67,13 +67,13 @@ object RecursiveDescentParser {
     def apply(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
       tokens.headOption.collectFirst {
         case name @ Token(Token.Type.Identifier, _, _, _) =>
-          consume(Token.Type.LeftParen, tokens.tail).flatMap { tail =>
+          discard(Token.Type.LeftParen, tokens.tail).flatMap { tail =>
             consumeParameters(Seq.empty[Token], tail)
           }.flatMap { case (params, tail) =>
             if (params.length > MAX_CALL_ARGS) {
               Left(ParserError(Seq(Token.Type.RightParen), tail)) // FIXME: this gives a not-very-useful error message
             } else {
-              consume(Token.Type.LeftBrace, tail).flatMap { tail1 =>
+              discard(Token.Type.LeftBrace, tail).flatMap { tail1 =>
                 block(tail1).map { case (body, tail2) =>
                   (Stmt.Function(name, params, body), tail2)
                 }
@@ -99,10 +99,10 @@ object RecursiveDescentParser {
   }
 
   private def varDeclaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
-    consume(Token.Type.Var, tokens).flatMap(tail => tail.headOption.collectFirst {
+    discard(Token.Type.Var, tokens).flatMap(tail => tail.headOption.collectFirst {
       case token @ Token(Token.Type.Identifier, _, _, _) =>
         for {
-          initializerRes <- consume(Token.Type.Equal, tail.tail) match {
+          initializerRes <- discard(Token.Type.Equal, tail.tail) match {
             case Left(_) =>
               // no assignment for this declaration
               Right(None -> tail.tail)
@@ -111,7 +111,7 @@ object RecursiveDescentParser {
               expression(tail2).map { case (value, tail3) => Option(value) -> tail3 }
           }
           (maybeInitializer, tail3) = initializerRes
-          finalTail <- consume(Token.Type.Semicolon, tail3)
+          finalTail <- discard(Token.Type.Semicolon, tail3)
         } yield (Stmt.Var(token, maybeInitializer), finalTail)
     }.getOrElse(Left(ParserError(Seq(Token.Type.Identifier), tokens))))
   }
@@ -151,7 +151,7 @@ object RecursiveDescentParser {
     for {
       res <- expression(tokens)
       (expression, tail) = res
-      finalTail <- consume(Token.Type.Semicolon, tail)
+      finalTail <- discard(Token.Type.Semicolon, tail)
     } yield (Stmt.Expression(expression), finalTail)
   }
 
@@ -159,16 +159,16 @@ object RecursiveDescentParser {
     for {
       res <- expression(tokens)
       (expression, tail) = res
-      finalTail <- consume(Token.Type.Semicolon, tail)
+      finalTail <- discard(Token.Type.Semicolon, tail)
     } yield (Stmt.Print(expression), finalTail)
   }
 
   private def ifStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     for {
-      tail1 <- consume(Token.Type.LeftParen, tokens)
+      tail1 <- discard(Token.Type.LeftParen, tokens)
       conditionRes <- expression(tail1)
       (condition, tail2) = conditionRes
-      tail3 <- consume(Token.Type.RightParen, tail2)
+      tail3 <- discard(Token.Type.RightParen, tail2)
 
       thenBranchRes <- statement(tail3)
       (thenBranch, tail4) = thenBranchRes
@@ -184,10 +184,10 @@ object RecursiveDescentParser {
 
   private def whileStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     for {
-      tail1 <- consume(Token.Type.LeftParen, tokens)
+      tail1 <- discard(Token.Type.LeftParen, tokens)
       conditionRes <- expression(tail1)
       (condition, tail2) = conditionRes
-      tail3 <- consume(Token.Type.RightParen, tail2)
+      tail3 <- discard(Token.Type.RightParen, tail2)
       bodyRes <- statement(tail3)
       (body, tail4) = bodyRes
     } yield {
@@ -197,9 +197,9 @@ object RecursiveDescentParser {
 
   private def forStatement(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     for {
-      tail1 <- consume(Token.Type.LeftParen, tokens)
+      tail1 <- discard(Token.Type.LeftParen, tokens)
 
-      initializerRes <- consume(Token.Type.Semicolon, tail1)
+      initializerRes <- discard(Token.Type.Semicolon, tail1)
         .map(tail => (None, tail))  // no initializer
         .recoverWith { case _ =>  // if we didn't find a semicolon, then there's an initializer
           tail1.headOption
@@ -209,18 +209,18 @@ object RecursiveDescentParser {
         }
       (initializer, tail2) = initializerRes
 
-      conditionRes <- consume(Token.Type.Semicolon, tail2)
+      conditionRes <- discard(Token.Type.Semicolon, tail2)
         .map(tail => (Expr.Literal(BooleanValue(true)), tail)) // no condition; defaults to 'true'
         .recoverWith { case _ =>  // if we didn't find a semicolon, then there's a condition
           expressionStatement(tail2).map { case (stmt, tail) => stmt.expression -> tail }
         }
       (condition, tail3) = conditionRes
 
-      incrementRes <- consume(Token.Type.RightParen, tail3)
+      incrementRes <- discard(Token.Type.RightParen, tail3)
         .map(tail => (None, tail))  // no condition
         .recoverWith { case _ =>  // if we didn't find a semicolon, then there's an increment
           expression(tail3).flatMap { case (expr, tail) =>
-            consume(Token.Type.RightParen, tail).map(tail1 => Some(expr) -> tail1)
+            discard(Token.Type.RightParen, tail).map(tail1 => Some(expr) -> tail1)
           }
         }
       (increment, tail4) = incrementRes
@@ -235,11 +235,11 @@ object RecursiveDescentParser {
   }
 
   private def returnStatement(returnToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
-    consume(Token.Type.Semicolon, tokens).map { tail =>
+    discard(Token.Type.Semicolon, tokens).map { tail =>
       (Stmt.Return(returnToken, Expr.Literal(NilValue)), tail)
     }.recoverWith { case _ =>
       expression(tokens).flatMap { case (returnExpr, tail) =>
-        consume(Token.Type.Semicolon, tail).map { tail1 =>
+        discard(Token.Type.Semicolon, tail).map { tail1 =>
           (Stmt.Return(returnToken, returnExpr), tail1)
         }
       }
@@ -271,7 +271,7 @@ object RecursiveDescentParser {
         for {
           res <- expression(tokens.tail)
           (expr, tail) = res
-          finalTail <- consume(Token.Type.RightParen, tail)
+          finalTail <- discard(Token.Type.RightParen, tail)
         } yield {
           (Expr.Grouping(expr), finalTail)
         }
@@ -441,7 +441,7 @@ object RecursiveDescentParser {
 
     @tailrec
     private def callRec(expr: Expr, tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
-      consume(Token.Type.LeftParen, tokens) match {
+      discard(Token.Type.LeftParen, tokens) match {
         case Right(tail) =>
           finishCall(expr, tail) match {
             case Right((expr1, tail1)) => callRec(expr1, tail1)
