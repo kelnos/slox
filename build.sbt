@@ -29,6 +29,8 @@ lazy val root = (project in file(".")).
     ),
     libraryDependencies ++= Seq(
       scalaParserCombinators,
+      slf4j,
+      logback,
       scalaTest % Test,
     ),
     mainClass in assembly := Some("org.spurint.slox.Lox"),

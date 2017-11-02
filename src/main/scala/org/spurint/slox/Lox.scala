@@ -1,6 +1,8 @@
 package org.spurint.slox
 
+import ch.qos.logback.classic.Level
 import java.nio.charset.Charset
+import org.slf4j.{Logger, LoggerFactory}
 import org.spurint.slox.interpreter.Interpreter.RuntimeError
 import org.spurint.slox.interpreter.{Environment, Interpreter}
 import org.spurint.slox.parser.{RecursiveDescentParser, Stmt}
@@ -8,8 +10,8 @@ import org.spurint.slox.scanner.{Scanner, Token}
 import org.spurint.slox.util._
 import scala.io.Source
 
-object Lox extends App {
-  case class LoxError(line: Int, message: String)
+object Lox extends App with LoxLogger {
+  case class LoxError(line: Int, message: String) extends HasLineInfo
 
   private def strForTokenType(`type`: Token.Type): String = {
     `type` match {
@@ -23,7 +25,7 @@ object Lox extends App {
   }
 
   private def reportError(err: LoxError): Unit = {
-    System.err.println(s"ERROR:${err.line}: ${err.message}")
+    error(err, err.message)
   }
 
   private def scan(source: String): Either[Seq[LoxError], Seq[Token]] = {
@@ -80,9 +82,16 @@ object Lox extends App {
       }
   }
 
+  Option(System.getenv("LOG_LEVEL")).map(Level.valueOf).foreach { logLevel =>
+    LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) match {
+      case ll: ch.qos.logback.classic.Logger => ll.setLevel(logLevel)
+      case x => warn(s"Unable to set log level because it's not a logback logger (${x.getClass.getName})")
+    }
+  }
+
   args.length match {
     case 0 => runPrompt()
     case 1 => runFile(args(0))
-    case _ => println("Usage: slox [script]"); sys.exit(1)
+    case _ => error("Usage: slox [script]"); sys.exit(1)
   }
 }
