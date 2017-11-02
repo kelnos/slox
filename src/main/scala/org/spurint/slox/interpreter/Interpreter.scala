@@ -101,7 +101,11 @@ object Interpreter extends LoxLogger {
 
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
     val definedState = state.defineVariable(stmt.name, NilValue)
-    val cls = new LoxClass(stmt.name)
+    val methods = stmt.methods.map { method =>
+      method.name.lexeme -> CallableValue(new LoxFunction(method, state.environment, state.resolvedLocals))
+    }.toMap
+    debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
+    val cls = new LoxClass(stmt.name, methods)
     definedState.assignVariable(stmt.name, CallableValue(cls))
   }
 
@@ -335,6 +339,7 @@ object Interpreter extends LoxLogger {
     debug(call, s"Calling function ${call.callee}")
     evaluate(call.callee, state).flatMap {
       case (CallableValue(callee), state1) =>
+        debug(call, s"Got callable: ${callee.name}")
         val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], State)] = Right(Seq.empty -> state1)
         val arguments = call.arguments.foldLeft(initialValue) {
           case (Right((argValues, curState)), arg) => evaluate(arg, curState).map {

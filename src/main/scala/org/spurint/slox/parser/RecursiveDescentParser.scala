@@ -487,8 +487,9 @@ object RecursiveDescentParser extends LoxLogger {
             case l => l
           }
         case Some(Token(Token.Type.Dot, _, _, _)) =>
-          consume(Token.Type.Identifier, tokens.tail).map { case (name, tail1) =>
-            (Expr.Get(expr, name), tail1)
+          consume(Token.Type.Identifier, tokens.tail) match {
+            case Right((name, tail1)) => callRec(Expr.Get(expr, name), tail1)
+            case l @ Left(_) => l.rightCast
           }
         case _ => Right(expr -> tokens)
       }

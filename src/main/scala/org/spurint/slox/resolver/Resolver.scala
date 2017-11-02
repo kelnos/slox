@@ -1,5 +1,6 @@
 package org.spurint.slox.resolver
 
+import org.spurint.slox.model.FunctionType
 import org.spurint.slox.parser.{Expr, Stmt}
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util.LoxLogger
@@ -71,7 +72,7 @@ object Resolver extends LoxLogger {
     }
   }
 
-  private def resolveFunction(state: State, stmt: Stmt.Function): Either[ResolverError, State] = {
+  private def resolveFunction(state: State, stmt: Stmt.Function, functionType: FunctionType): Either[ResolverError, State] = {
     debug(stmt, s"Entering function ${stmt.name.lexeme}")
     val result = state.scoped { functionState =>
       val parametersState = stmt.parameters.foldLeft(functionState)(
@@ -91,7 +92,10 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveClassStmt(state: State, stmt: Stmt.Class): Either[ResolverError, State] = {
-    Right(state.declare(stmt.name).define(stmt.name))
+    val nameState = state.declare(stmt.name).define(stmt.name)
+    stmt.methods.foldLeft[Either[ResolverError, State]](Right(nameState))(
+      (state, method) => state.flatMap(resolveFunction(_, method, FunctionType.Method))
+    )
   }
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {
@@ -100,7 +104,7 @@ object Resolver extends LoxLogger {
 
   private def resolveFunctionStmt(state: Resolver.State, stmt: Stmt.Function): Either[ResolverError, State] = {
     val nameState = state.declare(stmt.name).define(stmt.name)
-    resolveFunction(nameState, stmt)
+    resolveFunction(nameState, stmt, FunctionType.Function)
   }
 
   private def resolveIfStmt(state: State, stmt: Stmt.If): Either[ResolverError, State] = {
