@@ -42,18 +42,22 @@ class Environment private (val id: String, private val values: Map[String, Liter
 
   def assignAt(distance: Int, name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
     debug(name, s"Assign ${name.lexeme}=$value at dist $distance (our depth is $depth)")
-    ancestor(distance).map(_.assignHere(name, value)).getOrElse(Left(UndefinedVariableError(name)))
+    ancestor(distance).map(
+      assignEnv => assignEnv.assignHere(name, value).map(fixAssignChain(assignEnv, _))
+    ).getOrElse(Left(UndefinedVariableError(name)))
   }
 
   def assignAtRoot(name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
     debug(name, s"Assign ${name.lexeme}=$value at root (our depth is $depth)")
-    root.assignHere(name, value).map { newRoot =>
-      if (root == this) {
-        newRoot
-      } else {
-        val newEnvironments = collectAll().reverse.tail.reverse :+ newRoot
-        buildEnvironmentFromList(newEnvironments)
-      }
+    root.assignHere(name, value).map(fixAssignChain(root, _))
+  }
+
+  private def fixAssignChain(assignEnv: Environment, newTail: Environment): Environment = {
+    if (assignEnv == this) {
+      newTail
+    } else {
+      val newEnvironments = collectAll().takeWhile(_ != assignEnv) ++ newTail.collectAll()
+      buildEnvironmentFromList(newEnvironments)
     }
   }
 
@@ -119,8 +123,8 @@ class Environment private (val id: String, private val values: Map[String, Liter
   }
 
   private def buildEnvironmentFromList(environments: Seq[Environment]): Environment = {
-    environments.tail.foldRight(environments.head)(
-      (lower, env) => new Environment(env.id, env.values, Option(lower))
+    environments.reduceRight(
+      (env, lower) => new Environment(env.id, env.values, Option(lower))
     )
   }
 
