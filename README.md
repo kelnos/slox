@@ -56,6 +56,14 @@ There are a few differences between my version of Lox and the
   functions in question are able to make use of tail-call optimization,
   but many calls are not.  Stack overflows may be possible while running
   certain Lox programs.
+* This actually isn't a deviation, but it's "bad" from my perspective:
+  so far I've implemented LoxInstance (for class instances) using a
+  mutable data member (*gasp*).  I'll get around to finding an immutable
+  soluion for that eventually that doesn't deviate too far from the
+  script.
+* I don't support multiline string literals.  I *think* it might be
+  possible (need to read through scala-parser-combinators docs some
+  more), but I'll get to it later.
 
 ### Middling
 
@@ -67,12 +75,9 @@ There are a few differences between my version of Lox and the
 
 ### Good
 
-* Typical of Scala programs, I eschew using `null` as the internal
-  representation of Lox's `nil`, and instead repesent it as a distict
-  type of literal.
-* Since Scala has `case classes` and class-based pattern matching, I
-  don't use any codegen for the expression/statement types, or use the
-  visitor pattern.
+This is also a list of extras in the "CHALLENGES" section at the end of
+each chapter that I've gotten around to implementing so far.
+
 * I've implemented type coercions for concatenating strings with other
   types.
 * I've made it a runtime error to divide by zero.
@@ -80,6 +85,12 @@ There are a few differences between my version of Lox and the
   before parsing.  It even supports nested multiline comments.
 * I've implemented error productions for attempts to use binary
   operators where a unary operator is expected.
+* Typical of Scala programs, I eschew using `null` as the internal
+  representation of Lox's `nil`, and instead repesent it as a distict
+  type of literal.
+* Since Scala has `case classes` and class-based pattern matching, I
+  don't use any codegen for the expression/statement types, or use the
+  visitor pattern.
 
 ## Thanks
 
