@@ -29,39 +29,55 @@ object Lox extends App with LoxLogger {
     error(err, err.message)
   }
 
-  private def scan(source: String): Either[Seq[LoxError], Seq[Token]] = {
-    val tokens = Scanner(source)
-    val invalidTokens = tokens.collect { case t @ Token(Token.Type.Invalid, _, _, _) => t }
-    if (invalidTokens.nonEmpty) {
-      Left(invalidTokens.map(token => LoxError(token.line, s"Invalid token: ${token.lexeme}")))
-    } else {
-      Right(tokens)
-    }
+  private def scan(source: String): Seq[Token] = {
+    Scanner(source)
   }
 
-  private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Stmt]] = {
-    val finalTokens = tokens.filterNot(_.`type` == Token.Type.SingleLineComment)
-    RecursiveDescentParser(finalTokens).leftMap { err =>
+  private def stripComments(tokens: Seq[Token]): Either[LoxError, Seq[Token]] = {
+    tokens.foldLeft[Either[LoxError, (Int, Seq[Token])]](Right((0, Seq.empty[Token]))) {
+      case (accum @ Right(_), Token(Token.Type.SingleLineComment, _, _ , _)) => accum
+      case (Right((commentBlocks, ts)), Token(Token.Type.CommentStart, _, _, _)) => Right(commentBlocks + 1, ts)
+      case (Right((commentBlocks, ts)), token @ Token(Token.Type.CommentEnd, _, _, _)) =>
+        if (commentBlocks - 1 < 0) {
+          Left(LoxError(token.line, "Invalid comment block nesting"))
+        } else {
+          Right((commentBlocks - 1, ts))
+        }
+      case (Right((commentBlocks, ts)), token) if commentBlocks == 0 => Right((commentBlocks, ts :+ token))
+      case (accum @ Right(_), _) => accum
+      case (l @ Left(_), _) => l
+    }.map { case (_, ts) => ts }
+  }
+
+  private def validateTokens(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Token]] = {
+    val errors = tokens.collect {
+      case token @ Token(Token.Type.Invalid, _, _, _) =>
+        LoxError(token.line, s"Invalid sequence: ${token.lexeme}")
+    }
+    if (errors.nonEmpty) Left(errors)
+    else Right(tokens)
+  }
+
+  private def parse(tokens: Seq[Token]): Either[LoxError, Seq[Stmt]] = {
+    RecursiveDescentParser(tokens).leftMap { err =>
       val actual = err.actual.headOption.map(t => strForTokenType(t.`type`)).getOrElse("(unknown)")
       val line = err.actual.headOption.map(_.line).getOrElse(-1)
       val expected = err.expected.map(strForTokenType).mkString(", ")
-      Seq(LoxError(line, s"Unexpected token $actual; expected $expected"))
+      LoxError(line, s"Unexpected token $actual; expected $expected")
     }
   }
 
-  private def resolve(stmts: Seq[Stmt], initialResolvedLocals: Map[Int, Int]): Either[Seq[LoxError], Map[Int, Int]] = {
-    Resolver(stmts, initialResolvedLocals).leftMap(
-      err => Seq(LoxError(err.token.line, err.message))
-    )
+  private def resolve(stmts: Seq[Stmt], initialResolvedLocals: Map[Int, Int]): Either[LoxError, Map[Int, Int]] = {
+    Resolver(stmts, initialResolvedLocals).leftMap(err => LoxError(err.token.line, err.message))
   }
 
   private def interpret(stmts: Seq[Stmt],
                         initialEnvironment: Option[Environment],
-                        resolvedLocals: Map[Int, Int]): Either[Seq[LoxError], Environment] =
+                        resolvedLocals: Map[Int, Int]): Either[LoxError, Environment] =
   {
     Interpreter(stmts, initialEnvironment, resolvedLocals).leftMap {
-      case RuntimeError(token, message) => Seq(LoxError(token.line, s"$message: ${token.lexeme}"))
-      case Interpreter.Return(_, _) => Seq(LoxError(-1, s"BUG: Got Return error outside function call"))
+      case RuntimeError(token, message) => LoxError(token.line, s"$message: ${token.lexeme}")
+      case Interpreter.Return(_, _) => LoxError(-1, s"BUG: Got Return error outside function call")
     }
   }
 
@@ -70,10 +86,12 @@ object Lox extends App with LoxLogger {
                   initialResolvedLocals: Map[Int, Int] = Map.empty[Int, Int]): Either[Seq[LoxError], (Environment, Map[Int, Int])] =
   {
     for {
-      tokens <- scan(source)
-      stmts <- parse(tokens)
-      resolvedLocals <- resolve(stmts, initialResolvedLocals)
-      finalEnvironment <- interpret(stmts, initialEnvironment, resolvedLocals)
+      tokens <- Right(scan(source))
+      strippedTokens <- stripComments(tokens).leftMap(_ :: Nil)
+      finalTokens <- validateTokens(strippedTokens)
+      stmts <- parse(finalTokens).leftMap(_ :: Nil)
+      resolvedLocals <- resolve(stmts, initialResolvedLocals).leftMap(_ :: Nil)
+      finalEnvironment <- interpret(stmts, initialEnvironment, resolvedLocals).leftMap(_ :: Nil)
     } yield (finalEnvironment, resolvedLocals)
   }
 
