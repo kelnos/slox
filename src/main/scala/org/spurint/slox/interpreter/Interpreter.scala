@@ -102,7 +102,7 @@ object Interpreter extends LoxLogger {
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
     val definedState = state.defineVariable(stmt.name, NilValue)
     val methods = stmt.methods.map { method =>
-      method.name.lexeme -> CallableValue(new LoxFunction(method, state.environment, state.resolvedLocals))
+      method.name.lexeme -> new LoxFunction(method, state.environment, state.resolvedLocals)
     }.toMap
     debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
     val cls = new LoxClass(stmt.name, methods)
@@ -181,6 +181,7 @@ object Interpreter extends LoxLogger {
       case c: Expr.Call => evaluateCall(c, state)
       case g: Expr.Get => evaluateGet(g, state)
       case s: Expr.Set => evaluateSet(s, state)
+      case t: Expr.This => evaluateThis(t, state)
     }
   }
 
@@ -300,6 +301,12 @@ object Interpreter extends LoxLogger {
       }
       case _ => Left(RuntimeError(set.name, "Only instances have properties."))
     }
+  }
+
+  private def evaluateThis(thisExpr: Expr.This, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    state.lookUpVariable(thisExpr.keyword, thisExpr)
+      .map(value => Right((value, state)))
+      .getOrElse(Left(RuntimeError(thisExpr.keyword, s"Undefined variable")))
   }
 
   private def evaluateGrouping(grouping: Expr.Grouping, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {

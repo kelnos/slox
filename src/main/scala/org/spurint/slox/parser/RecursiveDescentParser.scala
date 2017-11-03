@@ -303,6 +303,8 @@ object RecursiveDescentParser extends LoxLogger {
           case Some(lit) => Right((Expr.Literal(lit), tokens.tail))
           case _ => Left(ParserError(Seq(token.`type`), Seq.empty[Token]))
         }
+      case Some(token @ Token(Token.Type.This, _, _, _)) =>
+        Right((Expr.This(token), tokens.tail))
       case Some(token @ Token(Token.Type.Identifier, _, _ , _)) =>
         Right((Expr.Variable(token), tokens.tail))
       case Some(token) if token.`type` == Token.Type.LeftParen =>

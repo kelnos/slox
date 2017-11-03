@@ -1,6 +1,5 @@
 package org.spurint.slox.resolver
 
-import org.spurint.slox.model.FunctionType
 import org.spurint.slox.parser.{Expr, Stmt}
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util.LoxLogger
@@ -15,8 +14,15 @@ object Resolver extends LoxLogger {
     case object Method extends FunctionType
   }
 
+  sealed trait ClassType
+  object ClassType {
+    case object None extends ClassType
+    case object Class extends ClassType
+  }
+
   case class State(scopes: List[Map[String, Boolean]] = Nil,
-                   locals: Map[Int, Int] = Map.empty[Int, Int])
+                   locals: Map[Int, Int] = Map.empty[Int, Int],
+                   classContext: ClassType = ClassType.None)
   {
     def beginScope(): State = {
       debug(s"Beginning scope ${scopes.length + 1}")
@@ -43,6 +49,11 @@ object Resolver extends LoxLogger {
           debug(name, s"${if (!ready) "Declaring" else "Defining"} ${name.lexeme} at scope level ${scopes.length}")
           copy(scopes = (head + (name.lexeme -> ready)) :: tail)
       }
+    }
+
+    def classBody(classType: ClassType)(f: State => Either[ResolverError, State]): Either[ResolverError, State] = {
+      val outerClassType = classContext
+      f(copy(classContext = classType)).map(_.copy(classContext = outerClassType))
     }
 
     def resolve(expr: Expr, depth: Int): State = copy(locals = locals + (System.identityHashCode(expr) -> depth))
@@ -93,9 +104,14 @@ object Resolver extends LoxLogger {
 
   private def resolveClassStmt(state: State, stmt: Stmt.Class): Either[ResolverError, State] = {
     val nameState = state.declare(stmt.name).define(stmt.name)
-    stmt.methods.foldLeft[Either[ResolverError, State]](Right(nameState))(
-      (state, method) => state.flatMap(resolveFunction(_, method, FunctionType.Method))
-    )
+    nameState.classBody(ClassType.Class) { classState =>
+      classState.scoped { innerState =>
+        val thisState = innerState.define(Token(Token.Type.This, Token.Type.This.lexeme, literal = None, line = stmt.line))
+        stmt.methods.foldLeft[Either[ResolverError, State]](Right(thisState))(
+          (state, method) => state.flatMap(resolveFunction(_, method, FunctionType.Method))
+        )
+      }
+    }
   }
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {
@@ -142,6 +158,7 @@ object Resolver extends LoxLogger {
       case l: Expr.Literal => resolveLiteralExpr(state, l)
       case l: Expr.Logical => resolveLogicalExpr(state, l)
       case s: Expr.Set => resolveSetExpr(state, s)
+      case t: Expr.This => resolveThisExpr(state, t)
       case u: Expr.Unary => resolveUnaryExpr(state, u)
       case v: Expr.Variable => resolveVariableExpr(state, v)
     }
@@ -196,6 +213,14 @@ object Resolver extends LoxLogger {
 
   private def resolveSetExpr(state: State, expr: Expr.Set): Either[ResolverError, State] = {
     resolve(state, expr.value).flatMap(resolve(_, expr.obj))
+  }
+
+  private def resolveThisExpr(state: State, expr: Expr.This): Either[ResolverError, State] = {
+    if (state.classContext != ClassType.Class) {
+      Left(ResolverError(expr.keyword, "Cannot use 'this' outside of a class."))
+    } else {
+      resolveLocal(state, expr, expr.keyword)
+    }
   }
 
   private def resolveUnaryExpr(state: State, stmt: Expr.Unary): Either[ResolverError, State] = {

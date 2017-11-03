@@ -15,6 +15,7 @@ object Expr {
   case class Literal(value: LiteralValue[_]) extends Expr { val line: Int = -1 }
   case class Logical(left: Expr, operator: Token, right: Expr) extends Expr { val line: Int = operator.line }
   case class Set(obj: Expr, name: Token, value: Expr) extends Expr { val line: Int = name.line }
+  case class This(keyword: Token) extends Expr { val line: Int = keyword.line }
   case class Unary(operator: Token, right: Expr) extends Expr { val line: Int = operator.line }
   case class Variable(name: Token) extends Expr { val line: Int = name.line }
 }

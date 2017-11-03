@@ -2,9 +2,10 @@ package org.spurint.slox.interpreter
 
 import java.util.UUID
 import org.spurint.slox.interpreter.Interpreter.InterpreterError
-import org.spurint.slox.model.LiteralValue.{CallableValue, NilValue}
+import org.spurint.slox.model.LiteralValue.{CallableValue, ClassInstanceValue, NilValue}
 import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.parser.Stmt
+import org.spurint.slox.scanner.Token
 import org.spurint.slox.util.{EitherEnrichments, LoxLogger}
 
 object LoxFunction {
@@ -23,6 +24,13 @@ class LoxFunction(private val declaration: Stmt.Function, closure: Environment, 
   override def line: Int = declaration.line
 
   private val hackedClosure = LoxFunction.hackFunctionRefInto(this, closure)
+
+  def bind(instance: LoxInstance): LoxFunction = {
+    val boundEnvironment = closure.pushScope(s"fbind-$name-${UUID.randomUUID()}")
+    val dummyThisToken = Token(Token.Type.This, Token.Type.This.lexeme, literal = None, line)
+    val boundThisEnvironment = boundEnvironment.define(dummyThisToken, ClassInstanceValue(instance))
+    new LoxFunction(declaration, boundThisEnvironment, resolvedLocals)
+  }
 
   override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
     debug(this, s"Calling $name(${arguments.mkString(", ")})")
