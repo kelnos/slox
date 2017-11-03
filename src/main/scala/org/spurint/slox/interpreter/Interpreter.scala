@@ -84,6 +84,7 @@ object Interpreter extends LoxLogger {
       case c: Stmt.Class => executeClassStmt(c, state)
       case c: Stmt.Continue => executeContinueStmt(c, state)
       case e: Stmt.Expression => executeExpressionStmt(e, state)
+      case f: Stmt.For => executeForStmt(f, state)
       case f: Stmt.Function => executeFunctionStmt(f, state)
       case i: Stmt.If => executeIfStmt(i, state)
       case p: Stmt.Print => executePrintStmt(p, state)
@@ -179,6 +180,39 @@ object Interpreter extends LoxLogger {
       (value, state1) = res
     } yield {
       state1.defineVariable(stmt.name, value)
+    }
+  }
+
+  private def executeForStmt(stmt: Stmt.For, state: State): Either[InterpreterError, State] = {
+    @tailrec
+    def rec(state: State): Either[InterpreterError, State] = {
+      @inline
+      def doIncrement(state: State): Either[InterpreterError, State] = {
+        stmt.increment.map(execute(_, state)).getOrElse(Right(state))
+      }
+
+      evaluate(stmt.condition, state) match {
+        case Right((conditionResult, state1)) =>
+          if (isTruthy(conditionResult)) {
+            execute(stmt.body, state1) match {
+              case Right(state2) => doIncrement(state2) match {
+                case Right(state3) => rec(state3)
+                case l => l
+              }
+              case Left(Interpreter.Continue(state2)) => doIncrement(state2) match {
+                case Right(state3) => rec(state3)
+                case l => l
+              }
+              case l => l
+            }
+          } else {
+            Right(state1)
+          }
+        case l @ Left(_) => l.rightCast
+      }
+    }
+    stmt.initializer.map(execute(_, state)).getOrElse(Right(state)).flatMap(rec).recover {
+      case Interpreter.Break(state1) => state1
     }
   }
 

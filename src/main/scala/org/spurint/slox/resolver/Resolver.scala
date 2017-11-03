@@ -83,6 +83,7 @@ object Resolver extends LoxLogger {
       case c: Stmt.Class => resolveClassStmt(state, c)
       case c: Stmt.Continue => resolveContinueStmt(state, c)
       case e: Stmt.Expression => resolveExpressionStmt(state, e)
+      case f: Stmt.For => resolveForStmt(state, f)
       case f: Stmt.Function => resolveFunctionStmt(state, f)
       case f: Stmt.If => resolveIfStmt(state, f)
       case p: Stmt.Print => resolvePrintStmt(state, p)
@@ -138,6 +139,15 @@ object Resolver extends LoxLogger {
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {
     resolve(state, stmt.expression)
+  }
+
+  private def resolveForStmt(state: State, stmt: Stmt.For): Either[ResolverError, State] = {
+    for {
+      state1 <- stmt.initializer.map(resolve(state, _)).getOrElse(Right(state))
+      state2 <- resolve(state1, stmt.condition)
+      state3 <- stmt.increment.map(resolve(state2, _)).getOrElse(Right(state2))
+      state4 <- resolve(state3, stmt.body)
+    } yield state4
   }
 
   private def resolveFunctionStmt(state: Resolver.State, stmt: Stmt.Function): Either[ResolverError, State] = {

@@ -267,11 +267,7 @@ object RecursiveDescentParser extends LoxLogger {
 
       bodyRes <- statement(tail4)
       (body, tail5) = bodyRes
-    } yield {
-      val whileLoop = Stmt.While(condition, Stmt.Block(body +: increment.map(Stmt.Expression.apply).toSeq))
-      val forBlock = Stmt.Block(initializer.toSeq :+ whileLoop)
-      (forBlock, tail5)
-    }
+    } yield (Stmt.For(initializer, condition, increment.map(Stmt.Expression.apply), body), tail5)
   }
 
   private def returnStatement(returnToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
