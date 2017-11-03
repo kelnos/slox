@@ -12,7 +12,11 @@ import scala.language.existentials
 object Interpreter extends LoxLogger {
   sealed trait InterpreterError
   case class RuntimeError(token: Token, message: String) extends InterpreterError
-  case class Return(value: LiteralValue[_], environment: Environment) extends InterpreterError
+
+  sealed trait ControlFlowChange extends InterpreterError
+  case class Return(value: LiteralValue[_], environment: Environment) extends ControlFlowChange
+  case class Break(state: State) extends ControlFlowChange
+  case class Continue(state: State) extends ControlFlowChange
 
   case class State(environment: Environment, resolvedLocals: Map[Int, Int]) {
     def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue[_]] = {
@@ -76,7 +80,9 @@ object Interpreter extends LoxLogger {
   private def execute(stmt: Stmt, state: State): Either[InterpreterError, State] = {
     stmt match {
       case b: Stmt.Block => executeBlockStmt(b, state)
+      case b: Stmt.Break => executeBreakStmt(b, state)
       case c: Stmt.Class => executeClassStmt(c, state)
+      case c: Stmt.Continue => executeContinueStmt(c, state)
       case e: Stmt.Expression => executeExpressionStmt(e, state)
       case f: Stmt.Function => executeFunctionStmt(f, state)
       case i: Stmt.If => executeIfStmt(i, state)
@@ -91,12 +97,31 @@ object Interpreter extends LoxLogger {
     val oldScopeId = state.environment.id
     val newScopeId = s"block-${block.hashCode}-${UUID.randomUUID()}"
     debug(block, s"Executing block $newScopeId")
+
+    def popScope(innerState: State): Either[InterpreterError, State] = {
+      innerState.popScopeTo(oldScopeId).recoverWith { case _ => Right(innerState) }
+    }
+    def recoverLoopControl(innerState: State, newError: State => InterpreterError): InterpreterError = {
+      popScope(innerState) match {
+        case Right(outerState) => newError(outerState)
+        case Left(err) => err
+      }
+    }
+
     block.statements.foldLeft[Either[InterpreterError, State]](Right(state.pushScope(newScopeId))) {
       case (Right(curState), stmt) => execute(stmt, curState)
       case (l, _) => l
-    }.flatMap(
-      innerState => innerState.popScopeTo(oldScopeId).recoverWith { case _ => Right(innerState) }
-    )
+    } match {
+      case Right(state1) => popScope(state1)
+      case Left(Interpreter.Break(state1)) => Left(recoverLoopControl(state1, Interpreter.Break.apply))
+      case Left(Interpreter.Continue(state1)) => Left(recoverLoopControl(state1, Interpreter.Continue.apply))
+      case x => x
+    }
+  }
+
+  private def executeBreakStmt(break: Stmt.Break, state: State): Either[InterpreterError, State] = {
+    debug(break.keyword, "gonna break!")
+    Left(Interpreter.Break(state))
   }
 
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
@@ -108,6 +133,11 @@ object Interpreter extends LoxLogger {
     debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
     val cls = new LoxClass(stmt.name, methods)
     definedState.assignVariable(stmt.name, CallableValue(cls))
+  }
+
+  private def executeContinueStmt(continue: Stmt.Continue, state: State): Either[InterpreterError, State] = {
+    debug(continue.keyword, "gonna continue!")
+    Left(Interpreter.Continue(state))
   }
 
   private def executeExpressionStmt(stmt: Stmt.Expression, state: State): Either[InterpreterError, State] = {
@@ -160,6 +190,7 @@ object Interpreter extends LoxLogger {
           if (isTruthy(conditionResult)) {
             execute(stmt.body, state1) match {
               case Right(state2) => rec(state2)
+              case Left(Interpreter.Continue(state2)) => rec(state2)
               case l => l
             }
           } else {
@@ -168,7 +199,9 @@ object Interpreter extends LoxLogger {
         case l @ Left(_) => l.rightCast
       }
     }
-    rec(state)
+    rec(state).recover {
+      case Interpreter.Break(state1) => state1
+    }
   }
 
   private def evaluate(expr: Expr, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {

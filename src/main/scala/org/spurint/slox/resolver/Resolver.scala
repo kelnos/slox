@@ -79,7 +79,9 @@ object Resolver extends LoxLogger {
   private def resolve(state: State, stmt: Stmt): Either[ResolverError, State] = {
     stmt match {
       case b: Stmt.Block => resolveBlockStmt(state, b)
+      case b: Stmt.Break => resolveBreakStmt(state, b)
       case c: Stmt.Class => resolveClassStmt(state, c)
+      case c: Stmt.Continue => resolveContinueStmt(state, c)
       case e: Stmt.Expression => resolveExpressionStmt(state, e)
       case f: Stmt.Function => resolveFunctionStmt(state, f)
       case f: Stmt.If => resolveIfStmt(state, f)
@@ -111,6 +113,10 @@ object Resolver extends LoxLogger {
     result
   }
 
+  private def resolveBreakStmt(state: State, stmt: Stmt.Break): Either[ResolverError, State] = {
+    Right(state)
+  }
+
   private def resolveClassStmt(state: State, stmt: Stmt.Class): Either[ResolverError, State] = {
     val nameState = state.declare(stmt.name).define(stmt.name)
     nameState.classBody(ClassType.Class) { classState =>
@@ -124,6 +130,10 @@ object Resolver extends LoxLogger {
         }
       }
     }
+  }
+
+  private def resolveContinueStmt(state: State, stmt: Stmt.Continue): Either[ResolverError, State] = {
+    Right(state)
   }
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {

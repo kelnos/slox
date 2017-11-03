@@ -106,15 +106,16 @@ class Environment private (val id: String, private val values: Map[String, Liter
   }
 
   def pushScope(id: String): Environment = {
-    debug(s"Pushing scope; new depth will be ${depth + 1}")
+    debug(s"Pushing scope as $id; new depth will be ${depth + 1}")
     new Environment(id, Map.empty[String, LiteralValue[_]], Some(this))
   }
 
   def popScopeTo(id: String): Either[ScopeError, Environment] = {
-    if (this.id ==  id) {
-      debug(s"Popping scope to depth $depth")
+    if (this.id == id) {
+      debug(s"Popped scope to $id at depth $depth")
       Right(this)
     } else {
+      debug(s"Popping scope to $id from depth $depth")
       enclosing.map(_.popScopeTo(id)).getOrElse(Left(ScopeError(Option(id))))
     }
   }

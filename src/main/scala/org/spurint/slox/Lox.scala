@@ -77,7 +77,7 @@ object Lox extends App with LoxLogger {
   {
     Interpreter(stmts, initialEnvironment, resolvedLocals).leftMap {
       case RuntimeError(token, message) => LoxError(token.line, s"$message: ${token.lexeme}")
-      case Interpreter.Return(_, _) => LoxError(-1, s"BUG: Got Return error outside function call")
+      case _: Interpreter.ControlFlowChange => LoxError(-1, s"BUG: Got control flow change outside function call")
     }
   }
 

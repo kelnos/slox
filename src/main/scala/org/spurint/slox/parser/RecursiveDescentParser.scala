@@ -164,6 +164,8 @@ object RecursiveDescentParser extends LoxLogger {
           case Token.Type.While => whileStatement(tokens.tail)
           case Token.Type.For => forStatement(tokens.tail)
           case Token.Type.Return => returnStatement(token, tokens.tail)
+          case Token.Type.Break => breakStatement(token, tokens.tail)
+          case Token.Type.Continue => continueStatement(token, tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
@@ -282,6 +284,14 @@ object RecursiveDescentParser extends LoxLogger {
         }
       }
     }
+  }
+
+  private def breakStatement(breakToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    discard(Token.Type.Semicolon, tokens).map(tail => (Stmt.Break(breakToken), tail))
+  }
+
+  private def continueStatement(continueToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    discard(Token.Type.Semicolon, tokens).map(tail => (Stmt.Continue(continueToken), tail))
   }
 
   // this is used only for error display, not actual program logic
