@@ -85,6 +85,8 @@ each chapter that I've gotten around to implementing so far.
   before parsing.  It even supports nested multiline comments.
 * I've implemented error productions for attempts to use binary
   operators where a unary operator is expected.
+* The `continue` and `break` keywords work inside `for` and `while`
+  loops. 
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.
