@@ -1,7 +1,7 @@
 package org.spurint.slox.interpreter
 
 import java.util.UUID
-import org.spurint.slox.interpreter.Interpreter.InterpreterError
+import org.spurint.slox.interpreter.Interpreter.{InterpreterError, RuntimeError}
 import org.spurint.slox.model.LiteralValue.{CallableValue, ClassInstanceValue, NilValue}
 import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.parser.Stmt
@@ -18,7 +18,7 @@ object LoxFunction {
   }
 }
 
-class LoxFunction(private val declaration: Stmt.Function, closure: Environment, resolvedLocals: Map[Int, Int]) extends LoxCallable with LoxLogger {
+class LoxFunction(private val declaration: Stmt.Function, closure: Environment, resolvedLocals: Map[Int, Int], isInitializer: Boolean) extends LoxCallable with LoxLogger {
   override def name: String = declaration.name.lexeme
   override def arity: Int = declaration.parameters.length
   override def line: Int = declaration.line
@@ -27,9 +27,8 @@ class LoxFunction(private val declaration: Stmt.Function, closure: Environment, 
 
   def bind(instance: LoxInstance): LoxFunction = {
     val boundEnvironment = closure.pushScope(s"fbind-$name-${UUID.randomUUID()}")
-    val dummyThisToken = Token(Token.Type.This, Token.Type.This.lexeme, literal = None, line)
-    val boundThisEnvironment = boundEnvironment.define(dummyThisToken, ClassInstanceValue(instance))
-    new LoxFunction(declaration, boundThisEnvironment, resolvedLocals)
+    val boundThisEnvironment = boundEnvironment.define(Token.thisToken(line), ClassInstanceValue(instance))
+    new LoxFunction(declaration, boundThisEnvironment, resolvedLocals, isInitializer)
   }
 
   override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
@@ -48,11 +47,22 @@ class LoxFunction(private val declaration: Stmt.Function, closure: Environment, 
     Interpreter(declaration.body, callEnvironment, resolvedLocals)
       .map(returnEnv => (NilValue: LiteralValue[_], returnEnv))
       .recover { case Interpreter.Return(returnValue, returnEnv) => (returnValue, returnEnv) }
-      .map { case (returnValue, returnEnv) =>
-        // hack alert: for the same reason as the hack described above, we need to merge
-        // any changes to the parent scopes during function execution back into the caller's
-        // environment before passing it back.
-        returnValue -> environment.mergeIn(returnEnv)
+      .flatMap { case (returnValue, returnEnv) =>
+        val actualReturnValue = if (isInitializer) {
+          val thisToken = Token.thisToken(line)
+          doublyHackedClosure.getAt(0, thisToken)
+            .map(Right.apply)
+            .getOrElse(Left(RuntimeError(thisToken, "BUG: Unable to find 'this' in class initializer scope")))
+        } else {
+          Right(returnValue)
+        }
+
+        actualReturnValue.map { arv =>
+          // hack alert: for the same reason as the hack described above, we need to merge
+          // any changes to the parent scopes during function execution back into the caller's
+          // environment before passing it back.
+          arv -> environment.mergeIn(returnEnv)
+        }
       }
   }
 

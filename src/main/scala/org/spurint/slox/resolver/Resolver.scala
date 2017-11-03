@@ -106,7 +106,7 @@ object Resolver extends LoxLogger {
     val nameState = state.declare(stmt.name).define(stmt.name)
     nameState.classBody(ClassType.Class) { classState =>
       classState.scoped { innerState =>
-        val thisState = innerState.define(Token(Token.Type.This, Token.Type.This.lexeme, literal = None, line = stmt.line))
+        val thisState = innerState.define(Token.thisToken(stmt.line))
         stmt.methods.foldLeft[Either[ResolverError, State]](Right(thisState))(
           (state, method) => state.flatMap(resolveFunction(_, method, FunctionType.Method))
         )

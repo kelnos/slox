@@ -7,7 +7,7 @@ import org.spurint.slox.scanner.Token
 
 class LoxClass(nameToken: Token, methods: Map[String, LoxFunction]) extends LoxCallable {
   override def name: String = nameToken.lexeme
-  override def arity: Int = 0
+  override lazy val arity: Int = methods.get("init").map(_.arity).getOrElse(0)
   override def line: Int = nameToken.line
 
   def findMethod(instance: LoxInstance, name: String): Option[CallableValue] = {
@@ -15,8 +15,12 @@ class LoxClass(nameToken: Token, methods: Map[String, LoxFunction]) extends LoxC
   }
 
   override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
-    val instance = new LoxInstance(this)
-    Right((ClassInstanceValue(instance), environment))
+    val instance = ClassInstanceValue(new LoxInstance(this))
+    findMethod(instance.value, "init").map { case CallableValue(initializer) =>
+      initializer.call(environment, arguments)
+    }.getOrElse(Right(instance -> environment)).map { case (returnValue, finalEnvironment) =>
+      (returnValue, finalEnvironment)
+    }
   }
 
   override lazy val toString: String = s"<cls $name>"

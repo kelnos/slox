@@ -102,7 +102,8 @@ object Interpreter extends LoxLogger {
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
     val definedState = state.defineVariable(stmt.name, NilValue)
     val methods = stmt.methods.map { method =>
-      method.name.lexeme -> new LoxFunction(method, state.environment, state.resolvedLocals)
+      val isIntializer = method.name.lexeme == "init"
+      method.name.lexeme -> new LoxFunction(method, state.environment, state.resolvedLocals, isIntializer)
     }.toMap
     debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
     val cls = new LoxClass(stmt.name, methods)
@@ -114,7 +115,8 @@ object Interpreter extends LoxLogger {
   }
 
   private def executeFunctionStmt(stmt: Stmt.Function, state: State): Either[InterpreterError, State] = {
-    Right(state.defineVariable(stmt.name, CallableValue(new LoxFunction(stmt, state.environment, state.resolvedLocals))))
+    val function = new LoxFunction(stmt, state.environment, state.resolvedLocals, isInitializer = false)
+    Right(state.defineVariable(stmt.name, CallableValue(function)))
   }
 
   private def executeIfStmt(stmt: Stmt.If, state: State): Either[InterpreterError, State] = {

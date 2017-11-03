@@ -70,6 +70,8 @@ object Token {
 
     case object Invalid extends Type
   }
+
+  def thisToken(line: Int): Token = Token(Token.Type.This, Token.Type.This.lexeme, literal = None, line)
 }
 
 case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue[_]], line: Int) extends HasLineInfo with HasIdentifier {
