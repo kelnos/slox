@@ -21,10 +21,17 @@ object Resolver extends LoxLogger {
     case object Class extends ClassType
   }
 
+  sealed trait LoopType
+  object LoopType {
+    case object None extends LoopType
+    case object Loop extends LoopType
+  }
+
   case class State(scopes: List[Map[String, Boolean]] = Nil,
                    locals: Map[Int, Int] = Map.empty[Int, Int],
                    functionContext: FunctionType = FunctionType.None,
-                   classContext: ClassType = ClassType.None)
+                   classContext: ClassType = ClassType.None,
+                   loopContext: LoopType = LoopType.None)
   {
     def beginScope(): State = {
       debug(s"Beginning scope ${scopes.length + 1}")
@@ -63,6 +70,11 @@ object Resolver extends LoxLogger {
       f(copy(classContext = classType)).map(_.copy(classContext = outerClassType))
     }
 
+    def loopBody(loopType: LoopType)(f: State => Either[ResolverError, State]): Either[ResolverError, State] = {
+      val outerLoopType = loopContext
+      f(copy(loopContext = loopType)).map(_.copy(loopContext = outerLoopType))
+    }
+
     def resolve(expr: Expr, depth: Int): State = copy(locals = locals + (System.identityHashCode(expr) -> depth))
   }
 
@@ -95,11 +107,13 @@ object Resolver extends LoxLogger {
   private def resolveFunction(state: State, stmt: Stmt.Function, functionType: FunctionType): Either[ResolverError, State] = {
     debug(stmt, s"Entering function ${stmt.name.lexeme}")
     val result = state.functionBody(functionType) { functionContextState =>
-      functionContextState.scoped { functionState =>
-        val parametersState = stmt.parameters.foldLeft(functionState)(
-          (state, token) => state.declare(token).define(token)
-        )
-        resolve(parametersState, stmt.body)
+      functionContextState.loopBody(LoopType.None) { noLoopState =>
+        noLoopState.scoped { functionState =>
+          val parametersState = stmt.parameters.foldLeft(functionState)(
+            (state, token) => state.declare(token).define(token)
+          )
+          resolve(parametersState, stmt.body)
+        }
       }
     }
     debug(stmt, s"Leaving function ${stmt.name.lexeme}")
@@ -114,7 +128,11 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveBreakStmt(state: State, stmt: Stmt.Break): Either[ResolverError, State] = {
-    Right(state)
+    if (state.loopContext == LoopType.None) {
+      Left(ResolverError(stmt.keyword, "Cannot break outside a loop"))
+    } else {
+      Right(state)
+    }
   }
 
   private def resolveClassStmt(state: State, stmt: Stmt.Class): Either[ResolverError, State] = {
@@ -133,7 +151,11 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveContinueStmt(state: State, stmt: Stmt.Continue): Either[ResolverError, State] = {
-    Right(state)
+    if (state.loopContext == LoopType.None) {
+      Left(ResolverError(stmt.keyword, "Cannot continue outside a loop"))
+    } else {
+      Right(state)
+    }
   }
 
   private def resolveExpressionStmt(state: State, stmt: Stmt.Expression): Either[ResolverError, State] = {
@@ -145,8 +167,10 @@ object Resolver extends LoxLogger {
       state1 <- stmt.initializer.map(resolve(state, _)).getOrElse(Right(state))
       state2 <- resolve(state1, stmt.condition)
       state3 <- stmt.increment.map(resolve(state2, _)).getOrElse(Right(state2))
-      state4 <- resolve(state3, stmt.body)
-    } yield state4
+      state5 <- state3.loopBody(LoopType.Loop) { state4 =>
+        resolve(state4, stmt.body)
+      }
+    } yield state5
   }
 
   private def resolveFunctionStmt(state: Resolver.State, stmt: Stmt.Function): Either[ResolverError, State] = {
