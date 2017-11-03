@@ -90,7 +90,6 @@ object Interpreter extends LoxLogger {
       case p: Stmt.Print => executePrintStmt(p, state)
       case r: Stmt.Return => executeReturnStmt(r, state)
       case v: Stmt.Var => executeVarStmt(v, state)
-      case w: Stmt.While => executeWhileStmt(w, state)
     }
   }
 
@@ -212,28 +211,6 @@ object Interpreter extends LoxLogger {
       }
     }
     stmt.initializer.map(execute(_, state)).getOrElse(Right(state)).flatMap(rec).recover {
-      case Interpreter.Break(state1) => state1
-    }
-  }
-
-  private def executeWhileStmt(stmt: Stmt.While, state: State): Either[InterpreterError, State] = {
-    @tailrec
-    def rec(state: State): Either[InterpreterError, State] = {
-      evaluate(stmt.condition, state) match {
-        case Right((conditionResult, state1)) =>
-          if (isTruthy(conditionResult)) {
-            execute(stmt.body, state1) match {
-              case Right(state2) => rec(state2)
-              case Left(Interpreter.Continue(state2)) => rec(state2)
-              case l => l
-            }
-          } else {
-            Right(state1)
-          }
-        case l @ Left(_) => l.rightCast
-      }
-    }
-    rec(state).recover {
       case Interpreter.Break(state1) => state1
     }
   }

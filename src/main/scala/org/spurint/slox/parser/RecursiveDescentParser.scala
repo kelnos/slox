@@ -231,7 +231,7 @@ object RecursiveDescentParser extends LoxLogger {
       bodyRes <- statement(tail3)
       (body, tail4) = bodyRes
     } yield {
-      (Stmt.While(condition, body), tail4)
+      (Stmt.For(initializer = None, condition, increment = None, body), tail4)
     }
   }
 

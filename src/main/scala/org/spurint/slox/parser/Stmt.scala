@@ -17,5 +17,4 @@ object Stmt {
   case class Print(expression: Expr) extends Stmt { val line: Int = expression.line }
   case class Return(keyword: Token, value: Expr) extends Stmt { val line: Int = keyword.line }
   case class Var(name: Token, initializer: Option[Expr]) extends Stmt { val line: Int = name.line }
-  case class While(condition: Expr, body: Stmt) extends Stmt { val line: Int = condition.line }
 }

@@ -89,7 +89,6 @@ object Resolver extends LoxLogger {
       case p: Stmt.Print => resolvePrintStmt(state, p)
       case r: Stmt.Return => resolveReturnStmt(state, r)
       case v: Stmt.Var => resolveVarStmt(state, v)
-      case w: Stmt.While => resolveWhileStmt(state, w)
     }
   }
 
@@ -178,10 +177,6 @@ object Resolver extends LoxLogger {
     stmt.initializer.map(resolve(declaredState, _)).getOrElse(Right(declaredState)).map { initializerState =>
       initializerState.define(stmt.name)
     }
-  }
-
-  private def resolveWhileStmt(state: State, stmt: Stmt.While): Either[ResolverError, State] = {
-    resolve(state, stmt.condition).flatMap(resolve(_, stmt.body))
   }
 
   private def resolve(state: State, expr: Expr): Either[ResolverError, State] = {
