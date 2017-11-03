@@ -73,7 +73,8 @@ There are a few differences between my version of Lox and the
 * Since Scala has `case classes` and class-based pattern matching, I
   don't use any codegen for the expression/statement types, or use the
   visitor pattern.
-* I've implemented type coercions for concatenating strings and numbers.
+* I've implemented type coercions for concatenating strings with other
+  types.
 * I've made it a runtime error to divide by zero.
 * My scanner preserves comments, and strips them after scanning but
   before parsing.  It even supports nested multiline comments.

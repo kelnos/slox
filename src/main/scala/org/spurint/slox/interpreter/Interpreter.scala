@@ -247,16 +247,12 @@ object Interpreter extends LoxLogger {
         case Token.Type.Minus => Right(NumberValue(ln - rn))
         case _ => Left(RuntimeError(operator, "Cannot perform arithmetic with this operator"))
       }
-      case (StringValue(ls), StringValue(rs)) => operator.`type` match {
-        case Token.Type.Plus => Right(StringValue(ls + rs))
+      case (lhs @ StringValue(_), rhs) => operator.`type` match {
+        case Token.Type.Plus => Right(StringValue(lhs.toString + rhs.toString))
         case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on string values"))
       }
-      case (StringValue(ls), _) => operator.`type` match {
-        case Token.Type.Plus => Right(StringValue(ls + right.toString))
-        case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on string values"))
-      }
-      case (_, StringValue(rs)) => operator.`type` match {
-        case Token.Type.Plus => Right(StringValue(left.toString + rs))
+      case (lhs, rhs @ StringValue(_)) => operator.`type` match {
+        case Token.Type.Plus => Right(StringValue(lhs.toString + rhs.toString))
         case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on string values"))
       }
       case _ => Left(RuntimeError(operator, "Cannot perform arithmetic on non-numeric values"))
