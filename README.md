@@ -67,16 +67,18 @@ There are a few differences between my version of Lox and the
 
 ### Good
 
-* I've implemented type coercions for concatenating strings and numbers.
-* I've made it a runtime error to divide by zero.
-* My scanner preserves comments, and strips them after scanning but
-  before parsing.  It even supports nested multiline comments.
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.
 * Since Scala has `case classes` and class-based pattern matching, I
   don't use any codegen for the expression/statement types, or use the
   visitor pattern.
+* I've implemented type coercions for concatenating strings and numbers.
+* I've made it a runtime error to divide by zero.
+* My scanner preserves comments, and strips them after scanning but
+  before parsing.  It even supports nested multiline comments.
+* I've implemented error productions for attempts to use binary
+  operators where a unary operator is expected.
 
 ## Thanks
 

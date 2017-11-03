@@ -364,6 +364,21 @@ object RecursiveDescentParser extends LoxLogger {
       Token.Type.Minus,
     )
 
+    private val disallowedBinaryOperators = Set[Token.Type](
+      Token.Type.Plus,
+      Token.Type.Star,
+      Token.Type.Slash,
+      Token.Type.Equal,
+      Token.Type.EqualEqual,
+      Token.Type.BangEqual,
+      Token.Type.Greater,
+      Token.Type.GreaterEqual,
+      Token.Type.Less,
+      Token.Type.LessEqual,
+      Token.Type.And,
+      Token.Type.Or,
+    )
+
     @inline
     def apply(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
       tokens.headOption match {
@@ -371,6 +386,8 @@ object RecursiveDescentParser extends LoxLogger {
           unary(tokens.tail).map { case (right, tail) =>
             (Expr.Unary(operator, right), tail)
           }
+        case Some(operator) if disallowedBinaryOperators.contains(operator.`type`) =>
+          Left(ParserError(unaryOperators.toSeq, tokens))
         case _ => call(tokens)
       }
     }
