@@ -146,7 +146,11 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveReturnStmt(state: State, stmt: Stmt.Return): Either[ResolverError, State] = {
-    resolve(state, stmt.value)
+    state.functionContext match {
+      case FunctionType.None => Left(ResolverError(stmt.keyword, "Cannot return from top-level code."))
+      case FunctionType.Initializer => Left(ResolverError(stmt.keyword, "Cannot return a value from an initializer."))
+      case FunctionType.Function | FunctionType.Method => resolve(state, stmt.value)
+    }
   }
 
   private def resolveVarStmt(state: State, stmt: Stmt.Var): Either[ResolverError, State] = {
