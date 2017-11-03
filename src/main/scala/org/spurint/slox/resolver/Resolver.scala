@@ -11,6 +11,7 @@ object Resolver extends LoxLogger {
   object FunctionType {
     case object None extends FunctionType
     case object Function extends FunctionType
+    case object Initializer extends FunctionType
     case object Method extends FunctionType
   }
 
@@ -22,6 +23,7 @@ object Resolver extends LoxLogger {
 
   case class State(scopes: List[Map[String, Boolean]] = Nil,
                    locals: Map[Int, Int] = Map.empty[Int, Int],
+                   functionContext: FunctionType = FunctionType.None,
                    classContext: ClassType = ClassType.None)
   {
     def beginScope(): State = {
@@ -49,6 +51,11 @@ object Resolver extends LoxLogger {
           debug(name, s"${if (!ready) "Declaring" else "Defining"} ${name.lexeme} at scope level ${scopes.length}")
           copy(scopes = (head + (name.lexeme -> ready)) :: tail)
       }
+    }
+
+    def functionBody(functionType: FunctionType)(f: State => Either[ResolverError, State]): Either[ResolverError, State] = {
+      val outerFunctionType = functionContext
+      f(copy(functionContext = functionType)).map(_.copy(functionContext = outerFunctionType))
     }
 
     def classBody(classType: ClassType)(f: State => Either[ResolverError, State]): Either[ResolverError, State] = {
@@ -85,11 +92,13 @@ object Resolver extends LoxLogger {
 
   private def resolveFunction(state: State, stmt: Stmt.Function, functionType: FunctionType): Either[ResolverError, State] = {
     debug(stmt, s"Entering function ${stmt.name.lexeme}")
-    val result = state.scoped { functionState =>
-      val parametersState = stmt.parameters.foldLeft(functionState)(
-        (state, token) => state.declare(token).define(token)
-      )
-      resolve(parametersState, stmt.body)
+    val result = state.functionBody(functionType) { functionContextState =>
+      functionContextState.scoped { functionState =>
+        val parametersState = stmt.parameters.foldLeft(functionState)(
+          (state, token) => state.declare(token).define(token)
+        )
+        resolve(parametersState, stmt.body)
+      }
     }
     debug(stmt, s"Leaving function ${stmt.name.lexeme}")
     result
@@ -107,9 +116,12 @@ object Resolver extends LoxLogger {
     nameState.classBody(ClassType.Class) { classState =>
       classState.scoped { innerState =>
         val thisState = innerState.define(Token.thisToken(stmt.line))
-        stmt.methods.foldLeft[Either[ResolverError, State]](Right(thisState))(
-          (state, method) => state.flatMap(resolveFunction(_, method, FunctionType.Method))
-        )
+        stmt.methods.foldLeft[Either[ResolverError, State]](Right(thisState)) { (state, method) =>
+          val functionType =
+            if (method.name.lexeme == "init") FunctionType.Initializer
+            else FunctionType.Method
+          state.flatMap(resolveFunction(_, method, functionType))
+        }
       }
     }
   }
