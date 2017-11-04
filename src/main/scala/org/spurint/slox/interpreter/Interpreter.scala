@@ -128,7 +128,7 @@ object Interpreter extends LoxLogger {
     val definedState = state.defineVariable(stmt.name, NilValue)
     val methods = stmt.methods.map { method =>
       val isIntializer = method.name.lexeme == "init"
-      method.name.lexeme -> new LoxFunction(method, state.environment, state.resolvedLocals, isIntializer)
+      method.name.lexeme -> new LoxFunction(Option(method.name), method.function, state.environment, state.resolvedLocals, isIntializer)
     }.toMap
     debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
     val cls = new LoxClass(stmt.name, methods)
@@ -145,7 +145,7 @@ object Interpreter extends LoxLogger {
   }
 
   private def executeFunctionStmt(stmt: Stmt.Function, state: State): Either[InterpreterError, State] = {
-    val function = new LoxFunction(stmt, state.environment, state.resolvedLocals, isInitializer = false)
+    val function = new LoxFunction(Option(stmt.name), stmt.function, state.environment, state.resolvedLocals, isInitializer = false)
     Right(state.defineVariable(stmt.name, CallableValue(function)))
   }
 
@@ -220,6 +220,7 @@ object Interpreter extends LoxLogger {
       case l: Expr.Literal => evaluateLiteral(l, state)
       case u: Expr.Unary => evaluateUnary(u, state)
       case b: Expr.Binary => evaluateBinary(b, state)
+      case f: Expr.Function => evaluateFunction(f, state)
       case g: Expr.Grouping => evaluateGrouping(g, state)
       case v: Expr.Variable => evaluateVariable(v, state).map(_ -> state)
       case a: Expr.Assign => evaluateAssign(a, state)
@@ -382,6 +383,11 @@ object Interpreter extends LoxLogger {
         case _ => evaluate(logical.right, state1)
       }
     }
+  }
+
+  private def evaluateFunction(function: Expr.Function, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    val f = new LoxFunction(fname = None, function, state.environment, state.resolvedLocals, isInitializer = false)
+    Right((CallableValue(f), state))
   }
 
   private def evaluateCall(call: Expr.Call, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {

@@ -18,6 +18,7 @@ object ExprAstPrinters {
   implicit val assignPriner: AstPrinter[Assign] = (expr: Assign) => parenthesize(expr.name.lexeme, expr.value)
   implicit val binaryPrinter: AstPrinter[Binary] = (expr: Binary) => parenthesize(expr.operator.lexeme, expr.left, expr.right)
   implicit val callPrinter: AstPrinter[Call] = (expr: Call) => parenthesize(genericExprPrinter(expr.callee), expr.arguments: _*)
+  implicit val functionPrinter: AstPrinter[Function] = (_: Function) => "anon func"
   implicit val getPrinter: AstPrinter[Get] = (expr: Get) => parenthesize(expr.name.lexeme, expr.obj)
   implicit val groupingPrinter: AstPrinter[Grouping] = (expr: Grouping) => parenthesize("group", expr.expression)
   implicit val literalPrinter: AstPrinter[Literal] = (expr: Literal) => expr.value.toString
@@ -31,6 +32,7 @@ object ExprAstPrinters {
     case a: Assign => assignPriner(a)
     case b: Binary => binaryPrinter(b)
     case c: Call => callPrinter(c)
+    case f: Function => functionPrinter(f)
     case g: Get => getPrinter(g)
     case g: Grouping => groupingPrinter(g)
     case l: Literal => literalPrinter(l)

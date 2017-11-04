@@ -104,22 +104,6 @@ object Resolver extends LoxLogger {
     }
   }
 
-  private def resolveFunction(state: State, stmt: Stmt.Function, functionType: FunctionType): Either[ResolverError, State] = {
-    debug(stmt, s"Entering function ${stmt.name.lexeme}")
-    val result = state.functionBody(functionType) { functionContextState =>
-      functionContextState.loopBody(LoopType.None) { noLoopState =>
-        noLoopState.scoped { functionState =>
-          val parametersState = stmt.parameters.foldLeft(functionState)(
-            (state, token) => state.declare(token).define(token)
-          )
-          resolve(parametersState, stmt.body)
-        }
-      }
-    }
-    debug(stmt, s"Leaving function ${stmt.name.lexeme}")
-    result
-  }
-
   private def resolveBlockStmt(state: State, stmt: Stmt.Block): Either[ResolverError, State] = {
     debug(stmt, s"Entering block ")
     val result = state.scoped(resolve(_, stmt.statements))
@@ -144,7 +128,7 @@ object Resolver extends LoxLogger {
           val functionType =
             if (method.name.lexeme == "init") FunctionType.Initializer
             else FunctionType.Method
-          state.flatMap(resolveFunction(_, method, functionType))
+          state.flatMap(resolveFunction(_, method.function, functionType))
         }
       }
     }
@@ -175,7 +159,7 @@ object Resolver extends LoxLogger {
 
   private def resolveFunctionStmt(state: Resolver.State, stmt: Stmt.Function): Either[ResolverError, State] = {
     val nameState = state.declare(stmt.name).define(stmt.name)
-    resolveFunction(nameState, stmt, FunctionType.Function)
+    resolveFunction(nameState, stmt.function, FunctionType.Function)
   }
 
   private def resolveIfStmt(state: State, stmt: Stmt.If): Either[ResolverError, State] = {
@@ -208,6 +192,7 @@ object Resolver extends LoxLogger {
       case a: Expr.Assign => resolveAssignExpr(state, a)
       case b: Expr.Binary => resolveBinaryExpr(state, b)
       case c: Expr.Call => resolveCallExpr(state, c)
+      case f: Expr.Function => resolveFunctionExpr(state, f)
       case g: Expr.Get => resolveGetExpr(state, g)
       case g: Expr.Grouping => resolveGroupingExpr(state, g)
       case l: Expr.Literal => resolveLiteralExpr(state, l)
@@ -234,6 +219,19 @@ object Resolver extends LoxLogger {
     })
   }
 
+  private def resolveFunction(state: State, expr: Expr.Function, functionType: FunctionType): Either[ResolverError, State] = {
+    state.functionBody(functionType) { functionContextState =>
+      functionContextState.loopBody(LoopType.None) { noLoopState =>
+        noLoopState.scoped { functionState =>
+          val parametersState = expr.parameters.foldLeft(functionState)(
+            (state, token) => state.declare(token).define(token)
+          )
+          resolve(parametersState, expr.body)
+        }
+      }
+    }
+  }
+
   private def resolveAssignExpr(state: State, expr: Expr.Assign): Either[ResolverError, State] = {
     resolve(state, expr.value).flatMap(resolveLocal(_, expr, expr.name))
   }
@@ -248,6 +246,10 @@ object Resolver extends LoxLogger {
         (state, arg) => state.flatMap(resolve(_, arg))
       )
     )
+  }
+
+  private def resolveFunctionExpr(state: State, expr: Expr.Function): Either[ResolverError, State] = {
+    resolveFunction(state, expr, FunctionType.Function)
   }
 
   private def resolveGetExpr(state: State, expr: Expr.Get): Either[ResolverError, State] = {

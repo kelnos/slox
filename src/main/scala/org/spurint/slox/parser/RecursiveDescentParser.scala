@@ -55,10 +55,17 @@ object RecursiveDescentParser extends LoxLogger {
     }
   }
 
+  private def isNextToken(`type`: Token.Type, tokens: Seq[Token]): Boolean = {
+    tokens.headOption match {
+      case Some(Token(`type`, _, _, _)) => true
+      case _ => false
+    }
+  }
+
   private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     val result = tokens.headOption match {
       case Some(Token(Token.Type.Class, _, _, _)) => classDeclaration(tokens.tail)
-      case Some(Token(Token.Type.Fun, _, _, _)) => function(tokens.tail)
+      case Some(Token(Token.Type.Fun, _, _, _)) if isNextToken(Token.Type.Identifier, tokens.tail) => function(tokens.tail)
       case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens)
       case _ => statement(tokens)
     }
@@ -101,30 +108,42 @@ object RecursiveDescentParser extends LoxLogger {
     }
   }
 
-  private object function {
-    def apply(tokens: Seq[Token]): Either[ParserError, (Stmt.Function, Seq[Token])] = {
-      tokens.headOption.collectFirst {
-        case name @ Token(Token.Type.Identifier, _, _, _) =>
-          discard(Token.Type.LeftParen, tokens.tail).flatMap { tail =>
-            consumeParameters(Seq.empty[Token], tail)
-          }.flatMap { case (params, tail) =>
-            if (params.length > MAX_CALL_ARGS) {
-              Left(ParserError(Seq(Token.Type.RightParen), tail)) // FIXME: this gives a not-very-useful error message
-            } else {
-              discard(Token.Type.LeftBrace, tail).flatMap { tail1 =>
-                block(tail1).map { case (body, tail2) =>
-                  (Stmt.Function(name, params, body), tail2)
-                }
-              }
-            }
-          }
-      }.getOrElse(Left(ParserError(Seq(Token.Type.Identifier), tokens)))
+  private def function(tokens: Seq[Token]): Either[ParserError, (Stmt.Function, Seq[Token])] = {
+    for {
+      nameRes <- consume(Token.Type.Identifier, tokens)
+      (name, tail1) = nameRes
+      _ = debug(name, "consumed identifier")
+      functionBodyRes <- functionBody(tail1)
+      (functionBody, tail2) = functionBodyRes
+    } yield (Stmt.Function(name, functionBody), tail2)
+  }
+
+  private object functionBody {
+    def apply(tokens: Seq[Token]): Either[ParserError, (Expr.Function, Seq[Token])] = {
+      (for {
+        parenRes <- consume(Token.Type.LeftParen, tokens)
+        (parenToken, tail1) = parenRes
+        _ = debug(parenToken, "consumed left paren")
+        paramsRes <- consumeParameters(Seq.empty[Token], tail1)
+        (params, tail2) = paramsRes
+        tail3 <- discard(Token.Type.LeftBrace, tail2)
+        bodyRes <- block(tail3)
+        (body, tail4) =bodyRes
+      } yield {
+        (Expr.Function(parenToken, params, body), tail4)
+      }).flatMap {
+        case (function, tail) if function.parameters.length > MAX_CALL_ARGS =>
+          // FIXME: this gives a not-very-useful error message
+          Left(ParserError(Seq(Token.Type.RightParen), tail))
+        case r => Right(r)
+      }
     }
 
     @tailrec
     private def consumeParameters(params: Seq[Token], tokens: Seq[Token]): Either[ParserError, (Seq[Token], Seq[Token])] = {
       tokens.headOption match {
         case Some(param @ Token(Token.Type.Identifier, _, _, _)) =>
+          debug(param, s"found param ident ${param.lexeme}")
           tokens.tail.headOption match {
             case Some(Token(Token.Type.Comma, _, _, _)) => consumeParameters(params :+ param, tokens.tail.tail)
             case Some(Token(Token.Type.RightParen, _, _, _)) => Right(params :+ param, tokens.tail.tail)
@@ -321,6 +340,8 @@ object RecursiveDescentParser extends LoxLogger {
         } yield {
           (Expr.Grouping(expr), finalTail)
         }
+      case Some(Token(Token.Type.Fun, _, _, _)) =>
+        functionBody(tokens.tail)
       case _ => Left(ParserError(primaryTokenTypes, tokens))
     }
   }

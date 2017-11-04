@@ -4,7 +4,7 @@ import java.util.UUID
 import org.spurint.slox.interpreter.Interpreter.{InterpreterError, RuntimeError}
 import org.spurint.slox.model.LiteralValue.{CallableValue, ClassInstanceValue, NilValue}
 import org.spurint.slox.model.{LiteralValue, LoxCallable}
-import org.spurint.slox.parser.Stmt
+import org.spurint.slox.parser.Expr
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util.{EitherEnrichments, LoxLogger}
 
@@ -13,22 +13,22 @@ object LoxFunction {
   // for this function has been put into the environment.  this is unavoidable because of how we've
   // designed our immutable env.  so, hack it in here before calling the function -- this will fix
   // recursive calls.
-  private def hackFunctionRefInto(function: LoxFunction, environment: Environment): Environment = {
-    environment.define(function.declaration.name, CallableValue(function))
+  private def hackFunctionRefInto(name: Token, function: LoxFunction, environment: Environment): Environment = {
+    environment.define(name, CallableValue(function))
   }
 }
 
-class LoxFunction(private val declaration: Stmt.Function, closure: Environment, resolvedLocals: Map[Int, Int], isInitializer: Boolean) extends LoxCallable with LoxLogger {
-  override def name: String = declaration.name.lexeme
+class LoxFunction(fname: Option[Token], private val declaration: Expr.Function, closure: Environment, resolvedLocals: Map[Int, Int], isInitializer: Boolean) extends LoxCallable with LoxLogger {
+  override def name: String = fname.map(_.lexeme).getOrElse(s"<fn@$line>")
   override def arity: Int = declaration.parameters.length
-  override def line: Int = declaration.line
+  override def line: Int = fname.map(_.line).getOrElse(declaration.line)
 
-  private val hackedClosure = LoxFunction.hackFunctionRefInto(this, closure)
+  private val hackedClosure = fname.map(LoxFunction.hackFunctionRefInto(_, this, closure)).getOrElse(closure)
 
   def bind(instance: LoxInstance): LoxFunction = {
     val boundEnvironment = closure.pushScope(s"fbind-$name-${UUID.randomUUID()}")
     val boundThisEnvironment = boundEnvironment.define(Token.thisToken(line), ClassInstanceValue(instance))
-    new LoxFunction(declaration, boundThisEnvironment, resolvedLocals, isInitializer)
+    new LoxFunction(fname, declaration, boundThisEnvironment, resolvedLocals, isInitializer)
   }
 
   override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
