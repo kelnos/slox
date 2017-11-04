@@ -88,6 +88,7 @@ each chapter that I've gotten around to implementing so far.
 * The `continue` and `break` keywords work inside `for` and `while`
   loops.
 * I've implemented anonymous functions.
+* It prints a warning for each unused local variable.
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.

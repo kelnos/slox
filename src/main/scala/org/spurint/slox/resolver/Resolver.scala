@@ -7,6 +7,13 @@ import org.spurint.slox.util.LoxLogger
 object Resolver extends LoxLogger {
   case class ResolverError(token: Token, message: String)
 
+  sealed trait VariableState
+  object VariableState {
+    case object Declared extends VariableState
+    case object Defined extends VariableState
+    case object Read extends VariableState
+  }
+
   sealed trait FunctionType
   object FunctionType {
     case object None extends FunctionType
@@ -27,7 +34,7 @@ object Resolver extends LoxLogger {
     case object Loop extends LoopType
   }
 
-  case class State(scopes: List[Map[String, Boolean]] = Nil,
+  case class State(scopes: List[Map[String, (Int, VariableState)]] = Nil,
                    locals: Map[Int, Int] = Map.empty[Int, Int],
                    functionContext: FunctionType = FunctionType.None,
                    classContext: ClassType = ClassType.None,
@@ -35,28 +42,58 @@ object Resolver extends LoxLogger {
   {
     def beginScope(): State = {
       debug(s"Beginning scope ${scopes.length + 1}")
-      copy(scopes = Map.empty[String, Boolean] :: scopes)
+      copy(scopes = Map.empty[String, (Int, VariableState)] :: scopes)
     }
 
     def endScope(): State = {
       debug(s"Ending scope ${scopes.length}")
+      scopes.head.collect {
+        case (name, (line, varState)) if varState != VariableState.Read => (line, name)
+      }.foreach { case (line, name) =>
+        val dummyToken = Token(Token.Type.Identifier, name, literal = None, line)
+        warn(dummyToken, s"Local variable $name is not used")
+      }
       copy(scopes = scopes.tail)
     }
 
     def scoped(f: State => Either[ResolverError, State]): Either[ResolverError, State] = f(beginScope()).map(_.endScope())
 
-    def declare(name: Token): State = addVar(name, ready = false)
+    def declare(name: Token): State = addVar(name, VariableState.Declared)
 
-    def define(name: Token): State = addVar(name, ready = true)
+    def define(name: Token): State = addVar(name, VariableState.Defined)
 
-    private def addVar(name: Token, ready: Boolean): State = {
+    def read(name: Token): State = {
+      scopes.zipWithIndex.reverse.collectFirst {
+        case (scope, idx) if scope.contains(name.lexeme) =>
+          val newScope = scope(name.lexeme) match {
+            case (line, VariableState.Declared) =>
+              warn(name, s"Reading uninitilalized variable ${name.lexeme}")
+              scope + (name.lexeme -> (line, VariableState.Read))
+            case (line, VariableState.Defined) =>
+              scope + (name.lexeme -> (line, VariableState.Read))
+            case (_, VariableState.Read) =>
+              scope
+          }
+          (newScope, idx)
+      } match {
+        case Some((newScope, idx)) =>
+          debug(name, s"Setting ${name.lexeme} to read at scope level ${idx + 1}")
+          copy(scopes = (scopes.take(idx) :+ newScope) ++ scopes.drop(idx + 1))
+        case _ =>
+          debug(name, s"Attempted to set var ${name.lexeme} to Read, but no scopes available (assuming global)")
+          this
+      }
+    }
+
+    private def addVar(name: Token, varState: VariableState): State = {
       scopes match {
         case Nil =>
-          debug(name, s"Attempt to ${if (!ready) "declare" else "define"} var ${name.lexeme}, but no scopes are available (assuming global)")
+          debug(name, s"Attempted to set var ${name.lexeme} to $varState, but no scopes are available (assuming global)")
           this
         case head :: tail =>
-          debug(name, s"${if (!ready) "Declaring" else "Defining"} ${name.lexeme} at scope level ${scopes.length}")
-          copy(scopes = (head + (name.lexeme -> ready)) :: tail)
+          debug(name, s"Setting ${name.lexeme} to $varState at scope level ${scopes.length}")
+          val declaredLine = head.get(name.lexeme).map { case (line, _) => line }.getOrElse(name.line)
+          copy(scopes = (head + (name.lexeme -> (declaredLine, varState))) :: tail)
       }
     }
 
@@ -204,7 +241,7 @@ object Resolver extends LoxLogger {
     }
   }
 
-  private def resolveLocal(state: State, expr: Expr, name: Token): Either[ResolverError, State] = {
+  private def resolveLocal(state: State, expr: Expr, name: Token, isRead: Boolean): Either[ResolverError, State] = {
     Right(state.scopes.reverse.zipWithIndex.reverse.collectFirst {
       case (scope, idx) if scope.contains(name.lexeme) =>
         debug(name, s"Found local var ${name.lexeme} in scope ${idx + 1}")
@@ -212,7 +249,7 @@ object Resolver extends LoxLogger {
     }.map({ idx =>
       val depth = state.scopes.length - 1 - idx
       debug(name, s"Marking ${name.lexeme} resolved at depth $depth for ${expr.getClass.getSimpleName} ${System.identityHashCode(expr)}")
-      state.resolve(expr, depth)
+      state.resolve(expr, depth).read(name)
     }).getOrElse {
       debug(name, s"Failed to find var ${name.lexeme}; assuming it's global (scope depth is ${state.scopes.length})")
       state
@@ -233,7 +270,7 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveAssignExpr(state: State, expr: Expr.Assign): Either[ResolverError, State] = {
-    resolve(state, expr.value).flatMap(resolveLocal(_, expr, expr.name))
+    resolve(state, expr.value).flatMap(resolveLocal(_, expr, expr.name, isRead = false))
   }
 
   private def resolveBinaryExpr(state: State, expr: Expr.Binary): Either[ResolverError, State] = {
@@ -276,7 +313,7 @@ object Resolver extends LoxLogger {
     if (state.classContext != ClassType.Class) {
       Left(ResolverError(expr.keyword, "Cannot use 'this' outside of a class."))
     } else {
-      resolveLocal(state, expr, expr.keyword)
+      resolveLocal(state, expr, expr.keyword, isRead = true)
     }
   }
 
@@ -286,10 +323,10 @@ object Resolver extends LoxLogger {
 
   private def resolveVariableExpr(state: State, expr: Expr.Variable): Either[ResolverError, State] = {
     state.scopes match {
-      case head :: _ if head.get(expr.name.lexeme).contains(false) =>
+      case head :: _ if head.get(expr.name.lexeme).exists { case (_, varState) => varState == VariableState.Declared } =>
         Left(ResolverError(expr.name, "Cannot read local variable in its own initializer."))
       case _ =>
-        resolveLocal(state, expr, expr.name)
+        resolveLocal(state, expr, expr.name, isRead = true)
     }
   }
 }
