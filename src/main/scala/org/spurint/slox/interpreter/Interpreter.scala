@@ -126,12 +126,16 @@ object Interpreter extends LoxLogger {
 
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
     val definedState = state.defineVariable(stmt.name, NilValue)
+    val staticMethods = stmt.staticMethods.map(method =>
+      method.name.lexeme -> new LoxFunction(Option(method.name), method.function, definedState.environment, definedState.resolvedLocals, isInitializer = false)
+    ).toMap
+    val metaclass = new LoxMetaClass(stmt.name, staticMethods)
     val methods = stmt.methods.map { method =>
-      val isIntializer = method.name.lexeme == "init"
-      method.name.lexeme -> new LoxFunction(Option(method.name), method.function, state.environment, state.resolvedLocals, isIntializer)
+      val isInitializer = method.name.lexeme == "init"
+      method.name.lexeme -> new LoxFunction(Option(method.name), method.function, definedState.environment, definedState.resolvedLocals, isInitializer)
     }.toMap
     debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
-    val cls = new LoxClass(stmt.name, methods)
+    val cls = new LoxClass(stmt.name, metaclass, methods)
     definedState.assignVariable(stmt.name, CallableValue(cls))
   }
 
@@ -332,17 +336,23 @@ object Interpreter extends LoxLogger {
 
   private def evaluateGet(get: Expr.Get, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
     evaluate(get.obj, state).flatMap {
-      case (ClassInstanceValue(instance), state1) => instance.get(get.name).map(value => (value, state1))
-      case _ => Left(RuntimeError(get.name, "Only instances have properties."))
+      case (ClassInstanceValue(instance), state1) => Right((instance, state1))
+      case (CallableValue(cls: LoxClass), state1) => Right((cls, state1))
+      case _ => Left(RuntimeError(get.name, "Only classes and instances have properties."))
+    }.flatMap { case (instance, state1) =>
+      instance.get(get.name).map(value => (value, state1))
     }
   }
 
   private def evaluateSet(set: Expr.Set, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
     evaluate(set.obj, state).flatMap {
-      case (ClassInstanceValue(instance), state1) => evaluate(set.value, state1).flatMap {
+      case (ClassInstanceValue(instance), state1) => Right((instance, state1))
+      case (CallableValue(cls: LoxClass), state1) => Right((cls, state1))
+      case _ => Left(RuntimeError(set.name, "Only classes and instances have properties."))
+    }.flatMap { case (instance, state1) =>
+      evaluate(set.value, state1).flatMap {
         case (value, state2) => instance.set(set.name, value).map(value => (value, state2))
       }
-      case _ => Left(RuntimeError(set.name, "Only instances have properties."))
     }
   }
 

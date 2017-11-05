@@ -85,23 +85,30 @@ object RecursiveDescentParser extends LoxLogger {
         (name, tail1) = nameRes
         _ = debug(name, s"Found class definition for ${name.lexeme}")
         tail2 <- discard(Token.Type.LeftBrace, tail1)
-        methodsRes <- classMethods(List.empty[Stmt.Function], tail2)
-        (methods, tail3) = methodsRes
+        methodsRes <- classMethods(List.empty[Stmt.Function], List.empty[Stmt.Function], tail2)
+        (staticMethods, methods, tail3) = methodsRes
         _ = debug(methods.lastOption.getOrElse(name), s"Got ${methods.length} methods for class ${name.lexeme}")
         tail4 <- discard(Token.Type.RightBrace, tail3)
-      } yield (Stmt.Class(name, methods), tail4)
+      } yield (Stmt.Class(name, staticMethods, methods), tail4)
     }
 
     @tailrec
-    private def classMethods(functions: List[Stmt.Function], tokens: Seq[Token]): Either[ParserError, (List[Stmt.Function], Seq[Token])] = {
+    private def classMethods(staticMethods: List[Stmt.Function], methods: List[Stmt.Function],  tokens: Seq[Token]): Either[ParserError, (List[Stmt.Function], List[Stmt.Function], Seq[Token])] = {
       tokens.headOption match {
         case Some(Token(Token.Type.RightBrace, _, _, _)) =>
           debug("Found end of method list")
-          Right(functions -> tokens)
+          Right((staticMethods, methods, tokens))
+        case Some(Token(Token.Type.Fun, _, _, _)) =>
+          function(tokens.tail) match {
+          case Right((stmt, tail)) =>
+            debug(stmt, s"Found static method ${stmt.name.lexeme}")
+            classMethods(stmt :: staticMethods, methods, tail)
+          case l @ Left(_) => l.rightCast
+        }
         case _ => function(tokens) match {
           case Right((stmt, tail)) =>
             debug(stmt, s"Found method ${stmt.name.lexeme}")
-            classMethods(stmt :: functions, tail)
+            classMethods(staticMethods, stmt :: methods, tail)
           case l @ Left(_) => l.rightCast
         }
       }

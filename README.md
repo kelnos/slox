@@ -89,6 +89,11 @@ each chapter that I've gotten around to implementing so far.
   loops.
 * I've implemented anonymous functions.
 * It prints a warning for each unused local variable.
+* Classes support static methods.  I deviated from the challenge in the
+  book here and used `fun` inside a class body to denote a static
+  method, instead of `class` as suggested.  Using `fun` just seems more
+  natural to me, and also leaves open the possibility of using `class`
+  inside a class body to support inner classes.
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.

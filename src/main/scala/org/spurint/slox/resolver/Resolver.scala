@@ -161,12 +161,17 @@ object Resolver extends LoxLogger {
     nameState.classBody(ClassType.Class) { classState =>
       classState.scoped { innerState =>
         val thisState = innerState.define(Token.thisToken(stmt.line))
-        stmt.methods.foldLeft[Either[ResolverError, State]](Right(thisState)) { (state, method) =>
-          val functionType =
-            if (method.name.lexeme == "init") FunctionType.Initializer
-            else FunctionType.Method
-          state.flatMap(resolveFunction(_, method.function, functionType))
-        }
+        for {
+          staticMethodsState <- stmt.staticMethods.foldLeft[Either[ResolverError, State]](Right(thisState))(
+            (state, method) => state.flatMap(resolveFunction(_, method.function, FunctionType.Method))
+          )
+          finalState <- stmt.methods.foldLeft[Either[ResolverError, State]](Right(staticMethodsState)) { (state, method) =>
+            val functionType =
+              if (method.name.lexeme == "init") FunctionType.Initializer
+              else FunctionType.Method
+            state.flatMap(resolveFunction(_, method.function, functionType))
+          }
+        } yield finalState
       }
     }
   }

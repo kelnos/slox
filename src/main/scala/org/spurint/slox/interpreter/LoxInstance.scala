@@ -5,11 +5,11 @@ import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.scanner.Token
 import scala.collection.mutable
 
-class LoxInstance(cls: LoxClass) {
+class LoxInstance(cls: LoxClassBase) {
   // FIXME: this is the only place where we have mutable state and i need to fix that later
   private val fields = new mutable.HashMap[String, LiteralValue[_]]
 
-  lazy val name: String = cls.name
+  def name: String = cls.name
 
   def get(name: Token): Either[InterpreterError, LiteralValue[_]] = {
     fields.get(name.lexeme)
