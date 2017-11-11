@@ -1,0 +1,13 @@
+fun f(a, b) {
+    print a;
+    print b;
+}
+
+var anonF = fun (a, b) {
+    print "anon " + a;
+    print "anon " + b;
+};
+
+f(1, 2);
+anonF(3, 4);
+fun () {};

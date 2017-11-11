@@ -1,0 +1,5 @@
+fun foo(bar, baz) {
+  print "foo barbaz: " + (bar + baz);
+  return 42;
+}
+print foo(1, 2);

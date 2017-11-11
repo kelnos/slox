@@ -1,0 +1,23 @@
+class Foo {
+    init(a) {
+        this.a = a;
+        // do some stuff
+        print "did stuff";
+    }
+
+    /* this is a lovely method that doesn't do stuff
+     * because not doing stuff is fun.
+     */
+    doNoStuff() {
+        this.a = this.a + 1;
+        print "ok, i lied, i did some stuff.";  // yes, indeed i did
+        print "i really did" /* sneaky */ ;
+        return 42;
+    }
+    /* this is a /* doubly nested */ comment */
+}
+
+var foo = Foo(1);
+print foo.a;
+print foo.doNoStuff();
+print foo.a;

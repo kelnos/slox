@@ -1,0 +1,3 @@
+if (true or false) { print "yeah"; }
+print "";
+if (true and false) { print "yeah"; } else { print "naw"; }

@@ -1,0 +1,22 @@
+fun f() {
+}
+
+class C {
+}
+
+var c = C();
+
+print "foo " + "bar";
+print "foo " + true;
+print "foo " + 42;
+print "foo " + nil;
+print "foo " + f;
+print "foo " + C;
+print "foo " + c;
+
+print true + " foo";
+print 42 + " foo";
+print nil + " foo";
+print f + " foo";
+print C + " foo";
+print c + " foo";

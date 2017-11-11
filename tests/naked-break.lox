@@ -1,0 +1,7 @@
+while (true) {
+    class Blah {
+        init() {
+            break;
+        }
+    }
+}

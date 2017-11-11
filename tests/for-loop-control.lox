@@ -1,0 +1,12 @@
+for (var i = 0; i < 10; i = i + 1) {
+    if (i == 2) {
+        print "skipping 2 because i hate it";
+        continue;
+    }
+    print i;
+    if (i == 4) {
+        print "never mind";
+        break;
+    }
+}
+print "got out!";

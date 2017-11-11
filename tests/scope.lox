@@ -1,0 +1,19 @@
+var global1 = "initial1";
+var global2 = "initial2";
+
+fun a(a1, b1) {
+    global1 = "inside a global1: a1=" + a1 + " b1=" + b1;
+    print global1;
+    var global2 = "inside a global2";
+    print global2;
+    var inner_a = "inner_a";
+    print inner_a;
+    return 22;
+}
+
+print global1;
+print global2;
+a(1, 2);
+print global1;
+print global2;
+print inner_a;

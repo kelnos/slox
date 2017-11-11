@@ -1,0 +1,8 @@
+var foo = 2.5;
+var bar = 3;
+
+print foo;
+print bar;
+print foo + bar;
+print foo * bar;
+print (1 + foo) * bar;

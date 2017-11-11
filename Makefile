@@ -1,8 +1,8 @@
-.PHONY: all assembly run clean
+.PHONY: all assembly run clean test
 
 SBT = $(shell which sbt)
 ifeq ($(SBT),)
-	$(error "Uou need 'sbt' somewhere; grab a launcher from https://raw.githubusercontent.com/paulp/sbt-extras/master/sbt")
+	$(error "You need 'sbt' somewhere; grab a launcher from https://raw.githubusercontent.com/paulp/sbt-extras/master/sbt")
 endif
 
 all: assembly
@@ -12,6 +12,9 @@ assembly:
 
 run:
 	$(SBT) 'runMain org.spurint.slox.Lox $(SCRIPT)'
+
+test:
+	./run_tests.sh
 
 clean:
 	$(SBT) clean

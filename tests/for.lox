@@ -1,0 +1,23 @@
+print "with 3 args";
+for (var i = 5; i >= 0; i = i - 1) {
+    print i;
+}
+
+print "no initializer";
+var i = 5;
+for (; i >= 0; i = i - 1) {
+    print i;
+}
+
+print "no initializer or increment";
+var i = 5;
+for (; i >= 0;) {
+    print i;
+    i = i - 1;
+}
+
+print "no intializer or condition";
+var i = 5;
+for (;; i = i - 1) {
+    print i;
+}

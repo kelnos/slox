@@ -1,0 +1,23 @@
+class Foo {
+    init() {
+        print "init run";
+    }
+
+    fun staticMethod() {
+        print "static method run; this is " + this;
+    }
+
+    instanceMethod() {
+        print "instance method run";
+    }
+}
+
+var foo = Foo();
+print foo.instanceMethod();
+print Foo.staticMethod();
+
+Foo.newStaticMethod = fun (a) {
+    print "yo, a is " + a;
+};
+
+Foo.newStaticMethod(3);

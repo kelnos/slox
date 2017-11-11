@@ -1,0 +1,12 @@
+{
+    var a = "bar";
+    var b;
+    var c = 22;
+
+    print a;
+
+    var d = "baz";
+    {
+        print d;
+    }
+}

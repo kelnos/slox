@@ -1,0 +1,14 @@
+{
+    var outside = 0;
+
+    fun stuff() {
+        print outside;  // 2
+        outside = 1;
+    }
+
+    print outside;  // 0
+    outside = 2;
+    print outside;  // 2
+    stuff();
+    print outside;  // 1
+}

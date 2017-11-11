@@ -1,0 +1,12 @@
+class SomeClass {
+    someMethod() {
+        print "i like methods";
+    }
+}
+
+print SomeClass;
+var instance = SomeClass();
+print instance;
+instance.someProp = 42;
+print instance.someProp;
+instance.someMethod();
