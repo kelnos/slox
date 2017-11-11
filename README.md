@@ -94,6 +94,7 @@ each chapter that I've gotten around to implementing so far.
   method, instead of `class` as suggested.  Using `fun` just seems more
   natural to me, and also leaves open the possibility of using `class`
   inside a class body to support inner classes.
+* Classes support 'getters' (property access that runs a block of code).
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.

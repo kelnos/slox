@@ -15,6 +15,7 @@ object LiteralValue {
   case class CommentValue(value: String) extends LiteralValue[String] { override val toString: String = value }
   case class CallableValue(value: LoxCallable) extends LiteralValue[LoxCallable] { override val toString: String = value.toString }
   case class ClassInstanceValue(value: LoxInstance) extends LiteralValue[LoxInstance] { override val toString: String = value.toString }
+  case class GettableValue(value: LoxCallable) extends LiteralValue[LoxCallable] { override val toString: String = value.toString }
 
   private def fmtNumber(number: Double): String = {
     if (number > Long.MaxValue || number < Long.MinValue || number.toLong != number) {

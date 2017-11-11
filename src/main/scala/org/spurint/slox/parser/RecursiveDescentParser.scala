@@ -79,38 +79,52 @@ object RecursiveDescentParser extends LoxLogger {
   }
 
   private object classDeclaration {
+    private case class ClassBody(staticMethods: List[Stmt.Function], methods: List[Stmt.Function], getters: List[Stmt.Function])
+
     def apply(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
       for {
         nameRes <- consume(Token.Type.Identifier, tokens)
         (name, tail1) = nameRes
         _ = debug(name, s"Found class definition for ${name.lexeme}")
         tail2 <- discard(Token.Type.LeftBrace, tail1)
-        methodsRes <- classMethods(List.empty[Stmt.Function], List.empty[Stmt.Function], tail2)
-        (staticMethods, methods, tail3) = methodsRes
+        methodsRes <- classBody(ClassBody(Nil, Nil, Nil), tail2)
+        (ClassBody(staticMethods, methods, getters), tail3) = methodsRes
         _ = debug(methods.lastOption.getOrElse(name), s"Got ${methods.length} methods for class ${name.lexeme}")
         tail4 <- discard(Token.Type.RightBrace, tail3)
-      } yield (Stmt.Class(name, staticMethods, methods), tail4)
+      } yield (Stmt.Class(name, staticMethods, methods, getters), tail4)
     }
 
     @tailrec
-    private def classMethods(staticMethods: List[Stmt.Function], methods: List[Stmt.Function],  tokens: Seq[Token]): Either[ParserError, (List[Stmt.Function], List[Stmt.Function], Seq[Token])] = {
+    private def classBody(body: ClassBody,  tokens: Seq[Token]): Either[ParserError, (ClassBody, Seq[Token])] = {
       tokens.headOption match {
         case Some(Token(Token.Type.RightBrace, _, _, _)) =>
           debug("Found end of method list")
-          Right((staticMethods, methods, tokens))
+          Right((body, tokens))
         case Some(Token(Token.Type.Fun, _, _, _)) =>
           function(tokens.tail) match {
-          case Right((stmt, tail)) =>
-            debug(stmt, s"Found static method ${stmt.name.lexeme}")
-            classMethods(stmt :: staticMethods, methods, tail)
-          case l @ Left(_) => l.rightCast
-        }
-        case _ => function(tokens) match {
-          case Right((stmt, tail)) =>
-            debug(stmt, s"Found method ${stmt.name.lexeme}")
-            classMethods(staticMethods, stmt :: methods, tail)
-          case l @ Left(_) => l.rightCast
-        }
+            case Right((stmt, tail)) =>
+              debug(stmt, s"Found static method ${stmt.name.lexeme}")
+              classBody(body.copy(staticMethods = stmt :: body.staticMethods), tail)
+            case l @ Left(_) => l.rightCast
+          }
+        case Some(token @ Token(Token.Type.Identifier, _, _, _)) =>
+          discard(Token.Type.LeftBrace, tokens.tail) match {
+            case Right(tail1) => block(tail1) match {
+              case Right((stmts, tail2)) =>
+                debug(token, s"Found getter ${token.lexeme}")
+                val getter = Stmt.Function(token, Expr.Function(token, Seq.empty, stmts))
+                classBody(body.copy(getters = getter :: body.getters), tail2)
+              case l @ Left(_) => l.rightCast
+            }
+            case Left(_) => function(tokens) match {
+              case Right((stmt, tail)) =>
+                debug(stmt, s"Found method ${stmt.name.lexeme}")
+                classBody(body.copy(methods = stmt :: body.methods), tail)
+              case l @ Left(_) => l.rightCast
+            }
+          }
+        case Some(token) => Left(ParserError(Seq(Token.Type.RightBrace, Token.Type.Fun, Token.Type.Identifier), Seq(token)))
+        case _ => Left(ParserError(Seq(Token.Type.RightBrace, Token.Type.Fun, Token.Type.Identifier), Seq.empty))
       }
     }
   }

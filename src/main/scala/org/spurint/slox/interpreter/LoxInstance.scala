@@ -13,6 +13,7 @@ class LoxInstance(cls: LoxClassBase) {
 
   def get(name: Token): Either[InterpreterError, LiteralValue[_]] = {
     fields.get(name.lexeme)
+      .orElse(cls.findGetter(this, name.lexeme))
       .orElse(cls.findMethod(this, name.lexeme))
       .map(Right.apply)
       .getOrElse(Left(RuntimeError(name, s"Undefined property '${name.lexeme}'.")))
@@ -23,5 +24,5 @@ class LoxInstance(cls: LoxClassBase) {
     Right(value)
   }
 
-  override lazy val toString: String = s"<inst $name>"
+  override lazy val toString: String = s"<${cls.name} $name>"
 }

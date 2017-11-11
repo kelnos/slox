@@ -5,7 +5,14 @@ import org.spurint.slox.model.LiteralValue.{CallableValue, ClassInstanceValue}
 import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.scanner.Token
 
-class LoxClass(nameToken: Token, metaclass: LoxMetaClass, protected val methods: Map[String, LoxFunction]) extends LoxInstance(metaclass) with LoxClassBase with LoxCallable {
+class LoxClass(nameToken: Token,
+               metaclass: LoxMetaClass,
+               protected val methods: Map[String, LoxFunction],
+               protected val getters: Map[String, LoxFunction])
+  extends LoxInstance(metaclass)
+  with LoxClassBase
+  with LoxCallable
+{
   override def name: String = nameToken.lexeme
   override lazy val arity: Int = methods.get("init").map(_.arity).getOrElse(0)
   override def line: Int = nameToken.line

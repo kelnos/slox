@@ -1,7 +1,7 @@
 package org.spurint.slox.interpreter
 
 import java.util.UUID
-import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.model.LiteralValue._
 import org.spurint.slox.parser.{Expr, Stmt}
 import org.spurint.slox.scanner.Token
@@ -134,8 +134,11 @@ object Interpreter extends LoxLogger {
       val isInitializer = method.name.lexeme == "init"
       method.name.lexeme -> new LoxFunction(Option(method.name), method.function, definedState.environment, definedState.resolvedLocals, isInitializer)
     }.toMap
+    val getters = stmt.getters.map { getter =>
+      getter.name.lexeme -> new LoxFunction(Option(getter.name), getter.function, definedState.environment, definedState.resolvedLocals, isInitializer = false)
+    }.toMap
     debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
-    val cls = new LoxClass(stmt.name, metaclass, methods)
+    val cls = new LoxClass(stmt.name, metaclass, methods, getters)
     definedState.assignVariable(stmt.name, CallableValue(cls))
   }
 
@@ -340,7 +343,11 @@ object Interpreter extends LoxLogger {
       case (CallableValue(cls: LoxClass), state1) => Right((cls, state1))
       case _ => Left(RuntimeError(get.name, "Only classes and instances have properties."))
     }.flatMap { case (instance, state1) =>
-      instance.get(get.name).map(value => (value, state1))
+      instance.get(get.name) match {
+        case Right(GettableValue(function)) => evaluateCallable(get.name, function, Seq.empty, state1)
+        case Right(value: LiteralValue[_]) => Right((value, state1))
+        case l @ Left(_) => l.rightCast
+      }
     }
   }
 
@@ -403,26 +410,26 @@ object Interpreter extends LoxLogger {
   private def evaluateCall(call: Expr.Call, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
     debug(call, s"Calling function ${call.callee}")
     evaluate(call.callee, state).flatMap {
-      case (CallableValue(callee), state1) =>
-        debug(call, s"Got callable: ${callee.name}")
-        val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], State)] = Right(Seq.empty -> state1)
-        val arguments = call.arguments.foldLeft(initialValue) {
-          case (Right((argValues, curState)), arg) => evaluate(arg, curState).map {
-            case (argValue, curState1) =>
-              (argValues :+ argValue) -> curState1
-          }
-          case (l, _) => l
-        }
-        arguments.flatMap { case (args, argState) =>
-          if (args.length != callee.arity) {
-            Left(RuntimeError(call.paren, s"Function takes ${callee.arity} arguments but ${args.length} provided"))
-          } else {
-            callee.call(argState.environment, args)
-              .map { case (returnValue, returnEnv) => returnValue -> argState.copy(environment = returnEnv) }
-          }
-        }
-      case (badCallee, _) =>
-        Left(RuntimeError(call.paren, s"Function callee $badCallee is not callable"))
+      case (CallableValue(callee), state1) => evaluateCallable(call.paren, callee, call.arguments, state1)
+      case (badCallee, _) => Left(RuntimeError(call.paren, s"Function callee $badCallee is not callable"))
+    }
+  }
+
+  private def evaluateCallable(location: Token, callable: LoxCallable, arguments: Seq[Expr], state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+    val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], State)] = Right(Seq.empty -> state)
+    arguments.foldLeft(initialValue) {
+      case (Right((argValues, curState)), arg) => evaluate(arg, curState).map {
+        case (argValue, curState1) =>
+          (argValues :+ argValue) -> curState1
+      }
+      case (l, _) => l
+    }.flatMap { case (args, argState) =>
+      if (args.length != callable.arity) {
+        Left(RuntimeError(location, s"Function takes ${callable.arity} arguments but ${args.length} provided"))
+      } else {
+        callable.call(argState.environment, args)
+          .map { case (returnValue, returnEnv) => returnValue -> argState.copy(environment = returnEnv) }
+      }
     }
   }
 }
