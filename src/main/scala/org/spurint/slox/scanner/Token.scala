@@ -3,6 +3,7 @@ package org.spurint.slox.scanner
 import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.model.LiteralValue.{BooleanValue, NilValue}
 import org.spurint.slox.util.{HasIdentifier, HasLineInfo}
+import scala.util.parsing.input.{Position, Positional}
 
 object Token {
   sealed trait Type
@@ -73,9 +74,22 @@ object Token {
     case object Invalid extends Type
   }
 
-  def thisToken(line: Int): Token = Token(Token.Type.This, Token.Type.This.lexeme, literal = None, line)
+  def thisToken(line: Int): Token = genToken(Token.Type.This, Token.Type.This.lexeme, line)
+
+  def dummyIdentifier(name: String, line: Int): Token = genToken(Token.Type.Identifier, name, line)
+
+  private def genToken(`type`: Token.Type, lexeme: String, _line: Int) = {
+    val token = Token(`type`, lexeme, literal = None)
+    token.setPos(new Position {
+      override def line: Int = _line
+      override def column: Int = 1
+      override protected def lineContents: String = lexeme
+    })
+    token
+  }
 }
 
-case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue[_]], line: Int) extends HasLineInfo with HasIdentifier {
+case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue[_]]) extends Positional with HasLineInfo with HasIdentifier {
   val id: String = lexeme
+  lazy val line: Int = pos.line
 }

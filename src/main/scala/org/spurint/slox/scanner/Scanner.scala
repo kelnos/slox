@@ -55,45 +55,43 @@ object Scanner extends RegexParsers {
     Token.Type.True,
   )
 
-  private def simpleTokens(lineNum: Int) = constLexemeTokenList
-    .map(t => t.lexeme ^^ (_ => Token(t, t.lexeme, literal = None, lineNum)))
+  private val simpleTokens = constLexemeTokenList
+    .map(t => t.lexeme ^^ (_ => Token(t, t.lexeme, literal = None)))
     .reduce((accum, next) => accum | next)
 
-  private def simpleLiteralTokens(lineNum: Int) = constLiteralTokenList
-    .map(t => t.lexeme ^^ (_ => Token(t, t.lexeme, Some(t.literal), lineNum)))
+  private val simpleLiteralTokens = constLiteralTokenList
+    .map(t => t.lexeme ^^ (_ => Token(t, t.lexeme, Some(t.literal))))
     .reduce((accum, next) => accum | next)
 
-  private def identifier(lineNum: Int) =
-    "[a-zA-Z_][a-zA-Z_0-9]*".r ^^ (iden => Token(Token.Type.Identifier, iden, Some(IdentifierValue(iden)), lineNum))
+  private val identifier =
+    "[a-zA-Z_][a-zA-Z_0-9]*".r ^^ (iden => Token(Token.Type.Identifier, iden, Some(IdentifierValue(iden))))
 
-  private def string(lineNum: Int) =
-    """"[^"]*"""".r ^^ (s => Token(Token.Type.String, s, Some(StringValue(s.substring(1, s.length - 1))), lineNum))
+  private val string =
+    """"[^"]*"""".r ^^ (s => Token(Token.Type.String, s, Some(StringValue(s.substring(1, s.length - 1)))))
 
-  private def number(lineNum: Int) =
-    "[0-9]+(?:\\.[0-9]+)?".r ^^ (num => Token(Token.Type.Number, num, Some(NumberValue(num.toDouble)), lineNum))
+  private val number =
+    "[0-9]+(?:\\.[0-9]+)?".r ^^ (num => Token(Token.Type.Number, num, Some(NumberValue(num.toDouble))))
 
-  private def singleLineComment(lineNum: Int) =
-    "//.*$".r ^^ (com => Token(Token.Type.SingleLineComment, com, Some(CommentValue(com.substring(2).trim)), lineNum))
+  private val singleLineComment =
+    "//.*(?:\r\n|\r|\n)".r ^^ (com => Token(Token.Type.SingleLineComment, com.trim, Some(CommentValue(com.substring(2).trim))))
 
-  private def invalidIdentifier(lineNum: Int) =
-    "[0-9]+[a-zA-Z_][a-zA-Z_0-9]*".r ^^ (inv => Token(Token.Type.Invalid, inv, None, lineNum))
+  private val invalidIdentifier =
+    "[0-9]+[a-zA-Z_][a-zA-Z_0-9]*".r ^^ (inv => Token(Token.Type.Invalid, inv, None))
 
-  private def invalid(lineNum: Int) =
-    "\\S+".r ^^ (inv => Token(Token.Type.Invalid, inv, None, lineNum))
+  private val invalid =
+    "\\S+".r ^^ (inv => Token(Token.Type.Invalid, inv, None))
 
-  private def tokens(lineNum: Int): Parser[List[Token]] = {
-    phrase(rep(
-      string(lineNum) | singleLineComment(lineNum) | simpleTokens(lineNum) | simpleLiteralTokens(lineNum) |
-      invalidIdentifier(lineNum) | number(lineNum) | identifier(lineNum) | invalid(lineNum)
-    ))
+  private val tokens: Parser[List[Token]] = {
+    phrase(rep(positioned(
+      string | singleLineComment | simpleTokens | simpleLiteralTokens |
+      invalidIdentifier | number | identifier | invalid
+    )))
   }
 
   def apply(source: String): Seq[Token] = {
-    source.split("\r\n|\r|\n").zipWithIndex.flatMap { case (line, lineNum) =>
-      parse(tokens(lineNum + 1), line) match {
-        case NoSuccess(_, _) => Seq(Token(Token.Type.Invalid, line, literal = None, lineNum + 1))
-        case Success(result, _) => result
-      }
-    } :+ Token(Token.Type.Eof, Token.Type.Eof.lexeme, None, -1)
+    (parse(tokens, source) match {
+      case NoSuccess(msg, _) => Seq(Token(Token.Type.Invalid, msg, literal = None))
+      case Success(result, _) => result
+    }) :+ Token(Token.Type.Eof, Token.Type.Eof.lexeme, None)
   }
 }

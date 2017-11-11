@@ -61,9 +61,6 @@ There are a few differences between my version of Lox and the
   mutable data member (*gasp*).  I'll get around to finding an immutable
   soluion for that eventually that doesn't deviate too far from the
   script.
-* I don't support multiline string literals.  I *think* it might be
-  possible (need to read through scala-parser-combinators docs some
-  more), but I'll get to it later.
 
 ### Middling
 

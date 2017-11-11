@@ -35,9 +35,9 @@ object Lox extends App with LoxLogger {
 
   private def stripComments(tokens: Seq[Token]): Either[LoxError, Seq[Token]] = {
     tokens.foldLeft[Either[LoxError, (Int, Seq[Token])]](Right((0, Seq.empty[Token]))) {
-      case (accum @ Right(_), Token(Token.Type.SingleLineComment, _, _ , _)) => accum
-      case (Right((commentBlocks, ts)), Token(Token.Type.CommentStart, _, _, _)) => Right(commentBlocks + 1, ts)
-      case (Right((commentBlocks, ts)), token @ Token(Token.Type.CommentEnd, _, _, _)) =>
+      case (accum @ Right(_), Token(Token.Type.SingleLineComment, _, _)) => accum
+      case (Right((commentBlocks, ts)), Token(Token.Type.CommentStart, _, _)) => Right(commentBlocks + 1, ts)
+      case (Right((commentBlocks, ts)), token @ Token(Token.Type.CommentEnd, _, _)) =>
         if (commentBlocks - 1 < 0) {
           Left(LoxError(token.line, "Invalid comment block nesting"))
         } else {
@@ -51,7 +51,7 @@ object Lox extends App with LoxLogger {
 
   private def validateTokens(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Token]] = {
     val errors = tokens.collect {
-      case token @ Token(Token.Type.Invalid, _, _, _) =>
+      case token @ Token(Token.Type.Invalid, _, _) =>
         LoxError(token.line, s"Invalid sequence: ${token.lexeme}")
     }
     if (errors.nonEmpty) Left(errors)

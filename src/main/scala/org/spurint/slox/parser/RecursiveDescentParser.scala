@@ -11,7 +11,7 @@ object RecursiveDescentParser extends LoxLogger {
   def apply(tokens: Seq[Token]): Either[ParserError, Seq[Stmt]] = {
     declaration(tokens).flatMap { case (stmt, tail) =>
       tail.toList match {
-        case Token(Token.Type.Eof, _, _, _) :: Nil => Right(Seq(stmt))
+        case Token(Token.Type.Eof, _, _) :: Nil => Right(Seq(stmt))
         case _ :: _ => apply(tail).map { nextStmts => stmt +: nextStmts }
         case _ => Left(ParserError(Seq(Token.Type.Eof), tail))
       }
@@ -43,30 +43,30 @@ object RecursiveDescentParser extends LoxLogger {
 
   private def discard(`type`: Token.Type, tokens: Seq[Token]): Either[ParserError, Seq[Token]] = {
     tokens.headOption match {
-      case Some(Token(`type`, _, _, _)) => Right(tokens.tail)
+      case Some(Token(`type`, _, _)) => Right(tokens.tail)
       case _ => Left(ParserError(Seq(`type`), tokens))
     }
   }
 
   private def consume(`type`: Token.Type, tokens: Seq[Token]): Either[ParserError, (Token, Seq[Token])] = {
     tokens.headOption match {
-      case Some(token @ Token(`type`, _, _, _)) => Right(token -> tokens.tail)
+      case Some(token @ Token(`type`, _, _)) => Right(token -> tokens.tail)
       case _ => Left(ParserError(Seq(`type`), tokens))
     }
   }
 
   private def isNextToken(`type`: Token.Type, tokens: Seq[Token]): Boolean = {
     tokens.headOption match {
-      case Some(Token(`type`, _, _, _)) => true
+      case Some(Token(`type`, _, _)) => true
       case _ => false
     }
   }
 
   private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     val result = tokens.headOption match {
-      case Some(Token(Token.Type.Class, _, _, _)) => classDeclaration(tokens.tail)
-      case Some(Token(Token.Type.Fun, _, _, _)) if isNextToken(Token.Type.Identifier, tokens.tail) => function(tokens.tail)
-      case Some(Token(Token.Type.Var, _, _ , _)) => varDeclaration(tokens)
+      case Some(Token(Token.Type.Class, _, _)) => classDeclaration(tokens.tail)
+      case Some(Token(Token.Type.Fun, _, _)) if isNextToken(Token.Type.Identifier, tokens.tail) => function(tokens.tail)
+      case Some(Token(Token.Type.Var, _, _)) => varDeclaration(tokens)
       case _ => statement(tokens)
     }
 
@@ -97,17 +97,17 @@ object RecursiveDescentParser extends LoxLogger {
     @tailrec
     private def classBody(body: ClassBody,  tokens: Seq[Token]): Either[ParserError, (ClassBody, Seq[Token])] = {
       tokens.headOption match {
-        case Some(Token(Token.Type.RightBrace, _, _, _)) =>
+        case Some(Token(Token.Type.RightBrace, _, _)) =>
           debug("Found end of method list")
           Right((body, tokens))
-        case Some(Token(Token.Type.Fun, _, _, _)) =>
+        case Some(Token(Token.Type.Fun, _, _)) =>
           function(tokens.tail) match {
             case Right((stmt, tail)) =>
               debug(stmt, s"Found static method ${stmt.name.lexeme}")
               classBody(body.copy(staticMethods = stmt :: body.staticMethods), tail)
             case l @ Left(_) => l.rightCast
           }
-        case Some(token @ Token(Token.Type.Identifier, _, _, _)) =>
+        case Some(token @ Token(Token.Type.Identifier, _, _)) =>
           discard(Token.Type.LeftBrace, tokens.tail) match {
             case Right(tail1) => block(tail1) match {
               case Right((stmts, tail2)) =>
@@ -163,14 +163,14 @@ object RecursiveDescentParser extends LoxLogger {
     @tailrec
     private def consumeParameters(params: Seq[Token], tokens: Seq[Token]): Either[ParserError, (Seq[Token], Seq[Token])] = {
       tokens.headOption match {
-        case Some(param @ Token(Token.Type.Identifier, _, _, _)) =>
+        case Some(param @ Token(Token.Type.Identifier, _, _)) =>
           debug(param, s"found param ident ${param.lexeme}")
           tokens.tail.headOption match {
-            case Some(Token(Token.Type.Comma, _, _, _)) => consumeParameters(params :+ param, tokens.tail.tail)
-            case Some(Token(Token.Type.RightParen, _, _, _)) => Right(params :+ param, tokens.tail.tail)
+            case Some(Token(Token.Type.Comma, _, _)) => consumeParameters(params :+ param, tokens.tail.tail)
+            case Some(Token(Token.Type.RightParen, _, _)) => Right(params :+ param, tokens.tail.tail)
             case _ => Left(ParserError(Seq(Token.Type.Comma, Token.Type.RightParen), tokens.tail))
           }
-        case Some(Token(Token.Type.RightParen, _, _, _)) => Right(params, tokens.tail)
+        case Some(Token(Token.Type.RightParen, _, _)) => Right(params, tokens.tail)
         case _ => Left(ParserError(Seq(Token.Type.Identifier), tokens))
       }
     }
@@ -178,7 +178,7 @@ object RecursiveDescentParser extends LoxLogger {
 
   private def varDeclaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     discard(Token.Type.Var, tokens).flatMap(tail => tail.headOption.collectFirst {
-      case token @ Token(Token.Type.Identifier, _, _, _) =>
+      case token @ Token(Token.Type.Identifier, _, _) =>
         for {
           initializerRes <- discard(Token.Type.Equal, tail.tail) match {
             case Left(_) =>
@@ -254,7 +254,7 @@ object RecursiveDescentParser extends LoxLogger {
       (thenBranch, tail4) = thenBranchRes
 
       elseBranchRes <- tail4.headOption.collectFirst {
-        case Token(Token.Type.Else, _, _, _) => statement(tail4.tail).map { case (stmt, tail) => (Option(stmt), tail) }
+        case Token(Token.Type.Else, _, _) => statement(tail4.tail).map { case (stmt, tail) => (Option(stmt), tail) }
       }.getOrElse(Right(None, tail4))
       (elseBranch, tail5) = elseBranchRes
     } yield {
@@ -283,7 +283,7 @@ object RecursiveDescentParser extends LoxLogger {
         .map(tail => (None, tail))  // no initializer
         .recoverWith { case _ =>  // if we didn't find a semicolon, then there's an initializer
           tail1.headOption
-            .collectFirst { case Token(Token.Type.Var, _, _ , _) => varDeclaration(tail1) }
+            .collectFirst { case Token(Token.Type.Var, _, _) => varDeclaration(tail1) }
             .getOrElse(expressionStatement(tail1))
             .map { case (stmt, tail) => Some(stmt) -> tail }
         }
@@ -344,14 +344,14 @@ object RecursiveDescentParser extends LoxLogger {
   @inline
   private def primary(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
     tokens.headOption match {
-      case Some(token @ Token(Token.Type.False | Token.Type.True | Token.Type.Nil | Token.Type.Number | Token.Type.String, _, literal, _)) =>
+      case Some(token @ Token(Token.Type.False | Token.Type.True | Token.Type.Nil | Token.Type.Number | Token.Type.String, _, literal)) =>
         literal match {
           case Some(lit) => Right((Expr.Literal(lit), tokens.tail))
           case _ => Left(ParserError(Seq(token.`type`), Seq.empty[Token]))
         }
-      case Some(token @ Token(Token.Type.This, _, _, _)) =>
+      case Some(token @ Token(Token.Type.This, _, _)) =>
         Right((Expr.This(token), tokens.tail))
-      case Some(token @ Token(Token.Type.Identifier, _, _ , _)) =>
+      case Some(token @ Token(Token.Type.Identifier, _, _)) =>
         Right((Expr.Variable(token), tokens.tail))
       case Some(token) if token.`type` == Token.Type.LeftParen =>
         for {
@@ -361,7 +361,7 @@ object RecursiveDescentParser extends LoxLogger {
         } yield {
           (Expr.Grouping(expr), finalTail)
         }
-      case Some(Token(Token.Type.Fun, _, _, _)) =>
+      case Some(Token(Token.Type.Fun, _, _)) =>
         functionBody(tokens.tail)
       case _ => Left(ParserError(primaryTokenTypes, tokens))
     }
@@ -375,7 +375,7 @@ object RecursiveDescentParser extends LoxLogger {
   private def assignment(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
     or(tokens).flatMap { case (expr, tail) =>
       tail.headOption match {
-        case Some(Token(Token.Type.Equal, _, _, _)) =>
+        case Some(Token(Token.Type.Equal, _, _)) =>
           assignment(tail.tail).flatMap { case (value, finalTail) =>
             expr match {
               case v: Expr.Variable => Right((Expr.Assign(v.name, value), finalTail))
@@ -391,7 +391,7 @@ object RecursiveDescentParser extends LoxLogger {
   private def or(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
     and(tokens).flatMap { case (expr, tail) =>
       tail.headOption.collectFirst {
-        case operator @ Token(Token.Type.Or, _, _, _) =>
+        case operator @ Token(Token.Type.Or, _, _) =>
           and(tail.tail).map { case (right, tail1) => (Expr.Logical(expr, operator, right), tail1) }
       }.getOrElse(Right(expr, tail))
     }
@@ -400,7 +400,7 @@ object RecursiveDescentParser extends LoxLogger {
   private def and(tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
     equality(tokens).flatMap { case (expr, tail) =>
       tail.headOption.collectFirst {
-        case operator @ Token(Token.Type.And, _, _, _) =>
+        case operator @ Token(Token.Type.And, _, _) =>
           equality(tail.tail).map { case (right, tail1) => (Expr.Logical(expr, operator, right), tail1) }
       }.getOrElse(Right(expr, tail))
     }
@@ -548,12 +548,12 @@ object RecursiveDescentParser extends LoxLogger {
     @tailrec
     private def callRec(expr: Expr, tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
       tokens.headOption match {
-        case Some(Token(Token.Type.LeftParen, _, _, _)) =>
+        case Some(Token(Token.Type.LeftParen, _, _)) =>
           finishCall(expr, tokens.tail) match {
             case Right((expr1, tail1)) => callRec(expr1, tail1)
             case l => l
           }
-        case Some(Token(Token.Type.Dot, _, _, _)) =>
+        case Some(Token(Token.Type.Dot, _, _)) =>
           consume(Token.Type.Identifier, tokens.tail) match {
             case Right((name, tail1)) => callRec(Expr.Get(expr, name), tail1)
             case l @ Left(_) => l.rightCast
@@ -565,7 +565,7 @@ object RecursiveDescentParser extends LoxLogger {
     @inline
     private def finishCall(callee: Expr, tokens: Seq[Token]): Either[ParserError, (Expr, Seq[Token])] = {
       tokens.headOption match {
-        case Some(token @ Token(Token.Type.RightParen, _, _, _)) =>
+        case Some(token @ Token(Token.Type.RightParen, _, _)) =>
           Right(Expr.Call(callee, token, Seq.empty[Expr]) -> tokens.tail)
         case _ =>
           consumeArguments(Seq.empty[Expr], tokens).flatMap { case (args, tail) =>
@@ -573,7 +573,7 @@ object RecursiveDescentParser extends LoxLogger {
               Left(ParserError(Seq(Token.Type.RightParen), tokens)) // FIXME: this gives a not-very-useful error message
             } else {
               tail.headOption.collectFirst {
-                case token @ Token(Token.Type.RightParen, _, _, _) => Right(token)
+                case token @ Token(Token.Type.RightParen, _, _) => Right(token)
               }.getOrElse(Left(ParserError(Seq(Token.Type.RightParen), tail))).map { closingParen =>
                 (Expr.Call(callee, closingParen, args), tail.tail)
               }
@@ -586,8 +586,8 @@ object RecursiveDescentParser extends LoxLogger {
     private def consumeArguments(args: Seq[Expr], tokens: Seq[Token]): Either[ParserError, (Seq[Expr], Seq[Token])] = {
       expression(tokens) match {
         case Right((arg, tail)) => tail.headOption match {
-          case Some(Token(Token.Type.Comma, _, _, _)) => consumeArguments(args :+ arg, tail.tail)
-          case Some(Token(Token.Type.RightParen, _, _, _)) => Right(args :+ arg, tail)
+          case Some(Token(Token.Type.Comma, _, _)) => consumeArguments(args :+ arg, tail.tail)
+          case Some(Token(Token.Type.RightParen, _, _)) => Right(args :+ arg, tail)
           case _ => Left(ParserError(Seq(Token.Type.Comma, Token.Type.RightParen), tail))
         }
         case l @ Left(_) => l.rightCast

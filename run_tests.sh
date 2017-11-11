@@ -17,6 +17,7 @@ TESTS_SUCCEED="
     for-loop-control.lox
     anonymous-fun.lox
     cls-methods.lox
+    multiline-string.lox
 "
 
 TESTS_FAIL="
