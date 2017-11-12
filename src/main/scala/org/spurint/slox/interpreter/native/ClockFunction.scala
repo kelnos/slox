@@ -11,7 +11,7 @@ object ClockFunction extends NativeFunction with LoxLogger {
   override def arity: Int = 0
   override def line: Int = 0
 
-  override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+  override def call(environment: Environment, arguments: Seq[LiteralValue]): Either[InterpreterError, (LiteralValue, Environment)] = {
     debug(this, s"Calling $name()")
     Right(NumberValue(System.currentTimeMillis()) -> environment)
   }

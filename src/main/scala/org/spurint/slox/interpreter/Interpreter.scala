@@ -7,27 +7,26 @@ import org.spurint.slox.parser.{Expr, Stmt}
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util._
 import scala.annotation.tailrec
-import scala.language.existentials
 
 object Interpreter extends LoxLogger {
   sealed trait InterpreterError
   case class RuntimeError(token: Token, message: String) extends InterpreterError
 
   sealed trait ControlFlowChange extends InterpreterError
-  case class Return(value: LiteralValue[_], environment: Environment) extends ControlFlowChange
+  case class Return(value: LiteralValue, environment: Environment) extends ControlFlowChange
   case class Break(state: State) extends ControlFlowChange
   case class Continue(state: State) extends ControlFlowChange
 
   case class State(environment: Environment, resolvedLocals: Map[Int, Int]) {
-    def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue[_]] = {
+    def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue] = {
       resolvedLocals.get(System.identityHashCode(expr))
         .map(environment.getAt(_, name))
         .getOrElse(environment.getAtRoot(name))
     }
 
-    def defineVariable(name: Token, value: LiteralValue[_]): State = copy(environment = environment.define(name, value))
+    def defineVariable(name: Token, value: LiteralValue): State = copy(environment = environment.define(name, value))
 
-    def assignVariable(name: Token, expr: Expr, value: LiteralValue[_]): Either[InterpreterError, State] = {
+    def assignVariable(name: Token, expr: Expr, value: LiteralValue): Either[InterpreterError, State] = {
       resolvedLocals.get(System.identityHashCode(expr))
         .map(distance => environment.assignAt(distance, name, value))
         .getOrElse(environment.assignAtRoot(name, value))
@@ -35,7 +34,7 @@ object Interpreter extends LoxLogger {
         .map(newEnv => copy(environment = newEnv))
     }
 
-    def assignVariable(name: Token, value: LiteralValue[_]): Either[InterpreterError, State] = {
+    def assignVariable(name: Token, value: LiteralValue): Either[InterpreterError, State] = {
       environment.assign(name, value)
         .leftMap(_ => RuntimeError(name, "Attempt to assign to an undefined variable"))
         .map(env => copy(environment = env))
@@ -222,7 +221,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluate(expr: Expr, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluate(expr: Expr, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     expr match {
       case l: Expr.Literal => evaluateLiteral(l, state)
       case u: Expr.Unary => evaluateUnary(u, state)
@@ -239,10 +238,10 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateLiteral(literal: Expr.Literal, state: State): Either[InterpreterError, (LiteralValue[_], State)] =
+  private def evaluateLiteral(literal: Expr.Literal, state: State): Either[InterpreterError, (LiteralValue, State)] =
     Right(literal.value -> state)
 
-  private def evaluateUnary(unary: Expr.Unary, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateUnary(unary: Expr.Unary, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     evaluate(unary.right, state).flatMap { case (right, state1) =>
       unary.operator.`type` match {
         case Token.Type.Bang => Right(BooleanValue(!isTruthy(right)) -> state1)
@@ -255,7 +254,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def isTruthy(value: LiteralValue[_]): Boolean = {
+  private def isTruthy(value: LiteralValue): Boolean = {
     value match {
       case NilValue => false
       case BooleanValue(b) => b
@@ -263,7 +262,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateBinary(binary: Expr.Binary, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateBinary(binary: Expr.Binary, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     for {
       res0 <- evaluate(binary.left, state)
       (left, state1) = res0
@@ -273,7 +272,7 @@ object Interpreter extends LoxLogger {
     } yield value
   }
 
-  private def evaluateBinary(binary: Expr.Binary, left: LiteralValue[_], operator: Token, right: LiteralValue[_]): Either[InterpreterError, LiteralValue[_]] = {
+  private def evaluateBinary(binary: Expr.Binary, left: LiteralValue, operator: Token, right: LiteralValue): Either[InterpreterError, LiteralValue] = {
     operator.`type` match {
       case Token.Type.EqualEqual => Right(BooleanValue(isEqual(left, right)))
       case Token.Type.BangEqual => Right(BooleanValue(!isEqual(left, right)))
@@ -288,7 +287,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def arithmetic(binary: Expr.Binary, left: LiteralValue[_], operator: Token, right: LiteralValue[_]): Either[InterpreterError, LiteralValue[_]] = {
+  private def arithmetic(binary: Expr.Binary, left: LiteralValue, operator: Token, right: LiteralValue): Either[InterpreterError, LiteralValue] = {
     (left, right) match {
       case (NumberValue(ln), NumberValue(rn)) => operator.`type` match {
         case Token.Type.Star => Right(NumberValue(ln * rn))
@@ -311,14 +310,14 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def compare(binary: Expr.Binary, left: LiteralValue[_], right: LiteralValue[_]): Either[InterpreterError, Int] = {
+  private def compare(binary: Expr.Binary, left: LiteralValue, right: LiteralValue): Either[InterpreterError, Int] = {
     (left, right) match {
       case (ln: NumberValue, rn: NumberValue) => Right(ln.value.compare(rn.value))
       case _ => Left(RuntimeError(binary.operator, "Cannot compare non-numeric values"))
     }
   }
 
-  private def compareBoolean(binary: Expr.Binary, left: LiteralValue[_], right: LiteralValue[_]): Either[InterpreterError, Boolean] = {
+  private def compareBoolean(binary: Expr.Binary, left: LiteralValue, right: LiteralValue): Either[InterpreterError, Boolean] = {
     (left, right) match {
       case (BooleanValue(lb), BooleanValue(rb)) => binary.operator.`type` match {
         case Token.Type.And => Right(lb && rb)
@@ -329,7 +328,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def isEqual(left: LiteralValue[_], right: LiteralValue[_]): Boolean = {
+  private def isEqual(left: LiteralValue, right: LiteralValue): Boolean = {
     (left, right) match {
       case (NilValue, NilValue) => true
       case (NilValue, _) => false
@@ -337,7 +336,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateGet(get: Expr.Get, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateGet(get: Expr.Get, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     evaluate(get.obj, state).flatMap {
       case (ClassInstanceValue(instance), state1) => Right((instance, state1))
       case (CallableValue(cls: LoxClass), state1) => Right((cls, state1))
@@ -345,13 +344,13 @@ object Interpreter extends LoxLogger {
     }.flatMap { case (instance, state1) =>
       instance.get(get.name) match {
         case Right(GettableValue(function)) => evaluateCallable(get.name, function, Seq.empty, state1)
-        case Right(value: LiteralValue[_]) => Right((value, state1))
+        case Right(value: LiteralValue) => Right((value, state1))
         case l @ Left(_) => l.rightCast
       }
     }
   }
 
-  private def evaluateSet(set: Expr.Set, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateSet(set: Expr.Set, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     evaluate(set.obj, state).flatMap {
       case (ClassInstanceValue(instance), state1) => Right((instance, state1))
       case (CallableValue(cls: LoxClass), state1) => Right((cls, state1))
@@ -363,24 +362,24 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateThis(thisExpr: Expr.This, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateThis(thisExpr: Expr.This, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     state.lookUpVariable(thisExpr.keyword, thisExpr)
       .map(value => Right((value, state)))
       .getOrElse(Left(RuntimeError(thisExpr.keyword, s"Undefined variable")))
   }
 
-  private def evaluateGrouping(grouping: Expr.Grouping, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateGrouping(grouping: Expr.Grouping, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     evaluate(grouping.expression, state)
   }
 
-  private def evaluateVariable(variable: Expr.Variable, state: State): Either[InterpreterError, LiteralValue[_]] = {
+  private def evaluateVariable(variable: Expr.Variable, state: State): Either[InterpreterError, LiteralValue] = {
     state
       .lookUpVariable(variable.name, variable)
       .map(Right.apply)
       .getOrElse(Left(RuntimeError(variable.name, s"Undefined variable")))
   }
 
-  private def evaluateAssign(assign: Expr.Assign, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateAssign(assign: Expr.Assign, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     for {
       res <- evaluate(assign.value, state)
       (value, state1) = res
@@ -392,7 +391,7 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateLogical(logical: Expr.Logical, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateLogical(logical: Expr.Logical, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     evaluate(logical.left, state).flatMap { case (left, state1) =>
       logical.operator.`type` match {
         case Token.Type.Or if isTruthy(left) => Right(left -> state1)
@@ -402,12 +401,12 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateFunction(function: Expr.Function, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateFunction(function: Expr.Function, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     val f = new LoxFunction(fname = None, function, state.environment, state.resolvedLocals, isInitializer = false)
     Right((CallableValue(f), state))
   }
 
-  private def evaluateCall(call: Expr.Call, state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
+  private def evaluateCall(call: Expr.Call, state: State): Either[InterpreterError, (LiteralValue, State)] = {
     debug(call, s"Calling function ${call.callee}")
     evaluate(call.callee, state).flatMap {
       case (CallableValue(callee), state1) => evaluateCallable(call.paren, callee, call.arguments, state1)
@@ -415,8 +414,8 @@ object Interpreter extends LoxLogger {
     }
   }
 
-  private def evaluateCallable(location: Token, callable: LoxCallable, arguments: Seq[Expr], state: State): Either[InterpreterError, (LiteralValue[_], State)] = {
-    val initialValue: Either[InterpreterError, (Seq[LiteralValue[_]], State)] = Right(Seq.empty -> state)
+  private def evaluateCallable(location: Token, callable: LoxCallable, arguments: Seq[Expr], state: State): Either[InterpreterError, (LiteralValue, State)] = {
+    val initialValue: Either[InterpreterError, (Seq[LiteralValue], State)] = Right(Seq.empty -> state)
     arguments.foldLeft(initialValue) {
       case (Right((argValues, curState)), arg) => evaluate(arg, curState).map {
         case (argValue, curState1) =>

@@ -13,7 +13,7 @@ object Token {
   }
 
   sealed trait ConstLiteralType extends ConstLexemeType {
-    def literal: LiteralValue[_]
+    def literal: LiteralValue
   }
 
   object Type {
@@ -89,7 +89,7 @@ object Token {
   }
 }
 
-case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue[_]]) extends Positional with HasLineInfo with HasIdentifier {
+case class Token(`type`: Token.Type, lexeme: String, literal: Option[LiteralValue]) extends Positional with HasLineInfo with HasIdentifier {
   val id: String = lexeme
   lazy val line: Int = pos.line
 }

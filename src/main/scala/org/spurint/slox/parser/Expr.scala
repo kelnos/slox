@@ -13,7 +13,7 @@ object Expr {
   case class Function(locationToken: Token, parameters: Seq[Token], body: Seq[Stmt]) extends Expr { val line: Int = locationToken.line }
   case class Get(obj: Expr, name: Token) extends Expr { val line: Int = name.line }
   case class Grouping(expression: Expr) extends Expr { val line: Int = expression.line}
-  case class Literal(value: LiteralValue[_]) extends Expr { val line: Int = -1 }
+  case class Literal(value: LiteralValue) extends Expr { val line: Int = -1 }
   case class Logical(left: Expr, operator: Token, right: Expr) extends Expr { val line: Int = operator.line }
   case class Set(obj: Expr, name: Token, value: Expr) extends Expr { val line: Int = name.line }
   case class This(keyword: Token) extends Expr { val line: Int = keyword.line }

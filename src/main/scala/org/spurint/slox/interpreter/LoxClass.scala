@@ -17,7 +17,7 @@ class LoxClass(nameToken: Token,
   override lazy val arity: Int = methods.get("init").map(_.arity).getOrElse(0)
   override def line: Int = nameToken.line
 
-  override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+  override def call(environment: Environment, arguments: Seq[LiteralValue]): Either[InterpreterError, (LiteralValue, Environment)] = {
     val instance = ClassInstanceValue(new LoxInstance(this))
     findMethod(instance.value, "init").map { case CallableValue(initializer) =>
       initializer.call(environment, arguments)

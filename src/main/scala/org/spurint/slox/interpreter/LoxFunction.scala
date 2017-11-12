@@ -31,7 +31,7 @@ class LoxFunction(fname: Option[Token], private val declaration: Expr.Function, 
     new LoxFunction(fname, declaration, boundThisEnvironment, resolvedLocals, isInitializer)
   }
 
-  override def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)] = {
+  override def call(environment: Environment, arguments: Seq[LiteralValue]): Either[InterpreterError, (LiteralValue, Environment)] = {
     debug(this, s"Calling $name(${arguments.mkString(", ")})")
 
     // hack alert: because our environments are immutable the parent scopes in the caller's
@@ -45,7 +45,7 @@ class LoxFunction(fname: Option[Token], private val declaration: Expr.Function, 
     }
 
     Interpreter(declaration.body, callEnvironment, resolvedLocals)
-      .map(returnEnv => (NilValue: LiteralValue[_], returnEnv))
+      .map(returnEnv => (NilValue: LiteralValue, returnEnv))
       .recover { case Interpreter.Return(returnValue, returnEnv) => (returnValue, returnEnv) }
       .flatMap { case (returnValue, returnEnv) =>
         val actualReturnValue = if (isInitializer) {

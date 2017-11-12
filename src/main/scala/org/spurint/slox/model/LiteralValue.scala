@@ -2,20 +2,18 @@ package org.spurint.slox.model
 
 import org.spurint.slox.interpreter.LoxInstance
 
-sealed trait LiteralValue[T] {
-  def value: T
-}
+sealed trait LiteralValue
 
 object LiteralValue {
-  case object NilValue extends LiteralValue[Any] { override val toString: String = "nil"; val value: Any = null }
-  case class NumberValue(value: Double) extends LiteralValue[Double] { override val toString: String = fmtNumber(value) }
-  case class StringValue(value: String) extends LiteralValue[String] { override val toString: String = value }
-  case class BooleanValue(value: Boolean) extends LiteralValue[Boolean] { override val toString: String = value.toString }
-  case class IdentifierValue(value: String) extends LiteralValue[String] { override val toString: String = value }
-  case class CommentValue(value: String) extends LiteralValue[String] { override val toString: String = value }
-  case class CallableValue(value: LoxCallable) extends LiteralValue[LoxCallable] { override val toString: String = value.toString }
-  case class ClassInstanceValue(value: LoxInstance) extends LiteralValue[LoxInstance] { override val toString: String = value.toString }
-  case class GettableValue(value: LoxCallable) extends LiteralValue[LoxCallable] { override val toString: String = value.toString }
+  case object NilValue extends LiteralValue { override val toString: String = "nil" }
+  case class NumberValue(value: Double) extends LiteralValue { override val toString: String = fmtNumber(value) }
+  case class StringValue(value: String) extends LiteralValue { override val toString: String = value }
+  case class BooleanValue(value: Boolean) extends LiteralValue { override val toString: String = value.toString }
+  case class IdentifierValue(value: String) extends LiteralValue { override val toString: String = value }
+  case class CommentValue(value: String) extends LiteralValue { override val toString: String = value }
+  case class CallableValue(value: LoxCallable) extends LiteralValue { override val toString: String = value.toString }
+  case class ClassInstanceValue(value: LoxInstance) extends LiteralValue { override val toString: String = value.toString }
+  case class GettableValue(value: LoxCallable) extends LiteralValue { override val toString: String = value.toString }
 
   private def fmtNumber(number: Double): String = {
     if (number > Long.MaxValue || number < Long.MinValue || number.toLong != number) {

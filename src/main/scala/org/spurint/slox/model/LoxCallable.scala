@@ -8,5 +8,5 @@ trait LoxCallable extends HasLineInfo with HasIdentifier {
   override val id: String = name
   def name: String
   def arity: Int
-  def call(environment: Environment, arguments: Seq[LiteralValue[_]]): Either[InterpreterError, (LiteralValue[_], Environment)]
+  def call(environment: Environment, arguments: Seq[LiteralValue]): Either[InterpreterError, (LiteralValue, Environment)]
 }

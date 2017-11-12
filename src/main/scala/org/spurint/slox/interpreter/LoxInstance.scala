@@ -7,11 +7,11 @@ import scala.collection.mutable
 
 class LoxInstance(cls: LoxClassBase) {
   // FIXME: this is the only place where we have mutable state and i need to fix that later
-  private val fields = new mutable.HashMap[String, LiteralValue[_]]
+  private val fields = new mutable.HashMap[String, LiteralValue]
 
   def name: String = cls.name
 
-  def get(name: Token): Either[InterpreterError, LiteralValue[_]] = {
+  def get(name: Token): Either[InterpreterError, LiteralValue] = {
     fields.get(name.lexeme)
       .orElse(cls.findGetter(this, name.lexeme))
       .orElse(cls.findMethod(this, name.lexeme))
@@ -19,7 +19,7 @@ class LoxInstance(cls: LoxClassBase) {
       .getOrElse(Left(RuntimeError(name, s"Undefined property '${name.lexeme}'.")))
   }
 
-  def set(name: Token, value: LiteralValue[_]): Either[InterpreterError, LiteralValue[_]] = {
+  def set(name: Token, value: LiteralValue): Either[InterpreterError, LiteralValue] = {
     fields.put(name.lexeme, value)
     Right(value)
   }

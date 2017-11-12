@@ -2,6 +2,7 @@ package org.spurint.slox.interpreter
 
 import org.spurint.slox.interpreter.Environment.{ScopeError, UndefinedVariableError}
 import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.model.LiteralValue.NilValue
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util._
 import scala.annotation.tailrec
@@ -15,10 +16,10 @@ object Environment {
     native.registerNativeFunctions(env)
   }
 
-  def apply(id: String): Environment = new Environment(id, Map.empty[String, LiteralValue[_]], enclosing = None)
+  def apply(id: String): Environment = new Environment(id, Map.empty[String, LiteralValue], enclosing = None)
 }
 
-class Environment private (val id: String, private val values: Map[String, LiteralValue[_]], private val enclosing: Option[Environment]) extends LoxLogger with HasIdentifier {
+class Environment private (val id: String, private val values: Map[String, LiteralValue], private val enclosing: Option[Environment]) extends LoxLogger with HasIdentifier {
   override protected def debug(line: HasLineInfo, msg: => Any): Unit = {
     super.debug(line, s"[$id] $msg")
   }
@@ -27,12 +28,12 @@ class Environment private (val id: String, private val values: Map[String, Liter
     super.debug(s"[$id] $msg")
   }
 
-  def define(name: HasLineInfo with HasIdentifier, value: LiteralValue[_]): Environment = {
+  def define(name: HasLineInfo with HasIdentifier, value: LiteralValue): Environment = {
     debug(name, s"Defining ${name.id}=$value (our depth is $depth)")
     new Environment(id, values + (name.id -> value), enclosing)
   }
 
-  private def assignHere(name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
+  private def assignHere(name: Token, value: LiteralValue): Either[UndefinedVariableError, Environment] = {
     if (values.contains(name.lexeme)) {
       Right(new Environment(id, values + (name.lexeme -> value), enclosing))
     } else {
@@ -40,7 +41,7 @@ class Environment private (val id: String, private val values: Map[String, Liter
     }
   }
 
-  def assign(name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
+  def assign(name: Token, value: LiteralValue): Either[UndefinedVariableError, Environment] = {
     debug(name, s"Assign ${name.lexeme}=$value recursively (our depth is $depth)")
     assignHere(name, value).recoverWith { case _ =>
       enclosing
@@ -49,14 +50,14 @@ class Environment private (val id: String, private val values: Map[String, Liter
     }
   }
 
-  def assignAt(distance: Int, name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
+  def assignAt(distance: Int, name: Token, value: LiteralValue): Either[UndefinedVariableError, Environment] = {
     debug(name, s"Assign ${name.lexeme}=$value at dist $distance (our depth is $depth)")
     ancestor(distance).map(
       assignEnv => assignEnv.assignHere(name, value).map(fixAssignChain(assignEnv, _))
     ).getOrElse(Left(UndefinedVariableError(name)))
   }
 
-  def assignAtRoot(name: Token, value: LiteralValue[_]): Either[UndefinedVariableError, Environment] = {
+  def assignAtRoot(name: Token, value: LiteralValue): Either[UndefinedVariableError, Environment] = {
     debug(name, s"Assign ${name.lexeme}=$value at root (our depth is $depth)")
     root.assignHere(name, value).map(fixAssignChain(root, _))
   }
@@ -70,16 +71,16 @@ class Environment private (val id: String, private val values: Map[String, Liter
     }
   }
 
-  private def get(name: Token): Option[LiteralValue[_]] = {
+  private def get(name: Token): Option[LiteralValue] = {
     debug(name, s"Get ${name.lexeme} recursively (our depth is $depth, id=$id, enc=${enclosing.map(_.id)})")
     getHere(name).orElse(enclosing.flatMap(enc => enc.get(name)))
   }
 
-  private def getHere(name: Token): Option[LiteralValue[_]] = {
+  private def getHere(name: Token): Option[LiteralValue] = {
     values.get(name.lexeme)
   }
 
-  def getAt(distance: Int, name: Token): Option[LiteralValue[_]] = {
+  def getAt(distance: Int, name: Token): Option[LiteralValue] = {
     debug(name, s"Get ${name.lexeme} from dist $distance (our depth is $depth)")
     val result = ancestor(distance).flatMap(_.getHere(name))
     if (logger.isDebugEnabled()) {
@@ -95,19 +96,20 @@ class Environment private (val id: String, private val values: Map[String, Liter
           env.enclosing.foreach(rec)
         }
         rec(this)
+        NilValue
       }
     }
     result
   }
 
-  def getAtRoot(name: Token): Option[LiteralValue[_]] = {
+  def getAtRoot(name: Token): Option[LiteralValue] = {
     debug(name, s"Get ${name.lexeme} from root (our depth is $depth)")
     root.getHere(name)
   }
 
   def pushScope(id: String): Environment = {
     debug(s"Pushing scope as $id; new depth will be ${depth + 1}")
-    new Environment(id, Map.empty[String, LiteralValue[_]], Some(this))
+    new Environment(id, Map.empty[String, LiteralValue], Some(this))
   }
 
   def popScopeTo(id: String): Either[ScopeError, Environment] = {
