@@ -46,12 +46,6 @@ There are a few differences between my version of Lox and the
 
 ### Bad
 
-* My version's interpreter doesn't attempt to re-synchronize when it
-  encounters a potentially non-fatal parse error.  This means that your
-  script might have a bunch of errors, but you'll need to run-fix-rerun
-  a lot to get them all reported.  (It'd probaly require a bit of a
-  refactor to get this working; there's currently no way to bubble up
-  errors while continuing execution.)
 * The parser and interpreter use a lot of recursion.  Some of the
   functions in question are able to make use of tail-call optimization,
   but many calls are not.  Stack overflows may be possible while running

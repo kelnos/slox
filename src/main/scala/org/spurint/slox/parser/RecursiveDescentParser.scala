@@ -8,18 +8,28 @@ import scala.annotation.tailrec
 object RecursiveDescentParser extends LoxLogger {
   case class ParserError(expected: Seq[Token.Type], actual: Seq[Token])
 
-  def apply(tokens: Seq[Token]): Either[ParserError, Seq[Stmt]] = {
-    declaration(tokens).flatMap { case (stmt, tail) =>
-      tail.toList match {
-        case Token(Token.Type.Eof, _, _) :: Nil => Right(Seq(stmt))
-        case _ :: _ => apply(tail).map { nextStmts => stmt +: nextStmts }
-        case _ => Left(ParserError(Seq(Token.Type.Eof), tail))
+  private case class State(tokens: Seq[Token], stmts: Seq[Stmt], errors: Seq[ParserError])
+
+  def apply(tokens: Seq[Token]): Either[Seq[ParserError], Seq[Stmt]] = {
+    @tailrec
+    def rec(state: State): State = {
+      state.tokens match {
+        case Token(Token.Type.Eof, _, _) :: Nil => state
+        case _ => declaration(state.tokens) match {
+          case Right((stmt, tail)) => rec(state.copy(tokens = tail, stmts = state.stmts :+ stmt))
+          case Left(error) => rec(state.copy(tokens = synchronize(error.actual), errors = state.errors :+ error))
+        }
       }
     }
+
+    val finalState = rec(State(tokens, Seq.empty, Seq.empty))
+    if (finalState.errors.nonEmpty) Left(finalState.errors)
+    else Right(finalState.stmts)
   }
 
   @tailrec
   private def synchronize(tokens: Seq[Token]): Seq[Token] = {
+    debug(s"attempt to resync at ${tokens.headOption}")
     tokens.headOption match {
       case Some(token) =>
         token.`type` match {
@@ -32,7 +42,8 @@ object RecursiveDescentParser extends LoxLogger {
                Token.Type.If |
                Token.Type.While |
                Token.Type.Print |
-               Token.Type.Return =>
+               Token.Type.Return |
+               Token.Type.Eof =>
             tokens
           case _ =>
             synchronize(tokens.tail)
@@ -63,18 +74,11 @@ object RecursiveDescentParser extends LoxLogger {
   }
 
   private def declaration(tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
-    val result = tokens.headOption match {
+    tokens.headOption match {
       case Some(Token(Token.Type.Class, _, _)) => classDeclaration(tokens.tail)
       case Some(Token(Token.Type.Fun, _, _)) if isNextToken(Token.Type.Identifier, tokens.tail) => function(tokens.tail)
       case Some(Token(Token.Type.Var, _, _)) => varDeclaration(tokens)
       case _ => statement(tokens)
-    }
-
-    if (false) {
-      // FIXME: this won't actually work as expected; we need to somehow propagate up that there was an error
-      result.recoverWith { case err => declaration(synchronize(tokens)) }
-    } else {
-      result
     }
   }
 

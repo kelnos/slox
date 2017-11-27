@@ -58,13 +58,13 @@ object Lox extends App with LoxLogger {
     else Right(tokens)
   }
 
-  private def parse(tokens: Seq[Token]): Either[LoxError, Seq[Stmt]] = {
-    RecursiveDescentParser(tokens).leftMap { err =>
+  private def parse(tokens: Seq[Token]): Either[Seq[LoxError], Seq[Stmt]] = {
+    RecursiveDescentParser(tokens).leftMap(_.map { err =>
       val actual = err.actual.headOption.map(t => strForTokenType(t.`type`)).getOrElse("(unknown)")
       val line = err.actual.headOption.map(_.line).getOrElse(-1)
       val expected = err.expected.map(strForTokenType).mkString(", ")
       LoxError(line, s"Unexpected token $actual; expected $expected")
-    }
+    })
   }
 
   private def resolve(stmts: Seq[Stmt], initialResolvedLocals: Map[Int, Int]): Either[LoxError, Map[Int, Int]] = {
@@ -89,7 +89,7 @@ object Lox extends App with LoxLogger {
       tokens <- Right(scan(source))
       strippedTokens <- stripComments(tokens).leftMap(_ :: Nil)
       finalTokens <- validateTokens(strippedTokens)
-      stmts <- parse(finalTokens).leftMap(_ :: Nil)
+      stmts <- parse(finalTokens)
       resolvedLocals <- resolve(stmts, initialResolvedLocals).leftMap(_ :: Nil)
       finalEnvironment <- interpret(stmts, initialEnvironment, resolvedLocals).leftMap(_ :: Nil)
     } yield (finalEnvironment, resolvedLocals)
