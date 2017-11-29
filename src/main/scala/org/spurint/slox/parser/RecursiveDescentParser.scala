@@ -311,7 +311,7 @@ object RecursiveDescentParser extends LoxLogger {
 
       bodyRes <- statement(tail4)
       (body, tail5) = bodyRes
-    } yield (Stmt.For(initializer, condition, increment.map(Stmt.Expression.apply), body), tail5)
+    } yield (Stmt.Block(Seq(Stmt.For(initializer, condition, increment.map(Stmt.Expression.apply), body))), tail5)
   }
 
   private def returnStatement(returnToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {

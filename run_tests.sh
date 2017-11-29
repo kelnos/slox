@@ -26,6 +26,7 @@ TESTS_FAIL="
     bad-unary.lox
     arity.lox
     funny-scope.lox
+    for-undefined.lox
 "
 
 run() {

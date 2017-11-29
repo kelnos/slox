@@ -1,0 +1,5 @@
+print "with 3 args";
+for (var i = 5; i >= 0; i = i - 1) {
+    print i;
+}
+print i;
