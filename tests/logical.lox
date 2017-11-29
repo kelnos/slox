@@ -1,3 +1,4 @@
-if (true or false) { print "yeah"; }
-print "";
+if (true or false) { print "yeah"; } else { print "naw"; }
 if (true and false) { print "yeah"; } else { print "naw"; }
+print "1" or "nope";
+print false or "yup";
