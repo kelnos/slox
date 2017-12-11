@@ -1,8 +1,8 @@
 package org.spurint.slox.interpreter
 
 import java.util.UUID
-import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.model.LiteralValue._
+import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.parser.{Expr, Stmt}
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util._
@@ -125,20 +125,31 @@ object Interpreter extends LoxLogger {
 
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
     val definedState = state.defineVariable(stmt.name, NilValue)
-    val staticMethods = stmt.staticMethods.map(method =>
-      method.name.lexeme -> new LoxFunction(Option(method.name), method.function, definedState.environment, definedState.resolvedLocals, isInitializer = false)
-    ).toMap
-    val metaclass = new LoxMetaClass(stmt.name, staticMethods)
-    val methods = stmt.methods.map { method =>
-      val isInitializer = method.name.lexeme == "init"
-      method.name.lexeme -> new LoxFunction(Option(method.name), method.function, definedState.environment, definedState.resolvedLocals, isInitializer)
-    }.toMap
-    val getters = stmt.getters.map { getter =>
-      getter.name.lexeme -> new LoxFunction(Option(getter.name), getter.function, definedState.environment, definedState.resolvedLocals, isInitializer = false)
-    }.toMap
-    debug(stmt, s"Creating class ${stmt.name.lexeme} with methods ${methods.keys}")
-    val cls = new LoxClass(stmt.name, metaclass, methods, getters)
-    definedState.assignVariable(stmt.name, CallableValue(cls))
+    val superclassResult = stmt.superclass match {
+      case Some(superclass) =>
+        evaluate(superclass, definedState) match {
+          case Right((CallableValue(cls: LoxClass), superclassState)) => Right(Option(cls), superclassState)
+          case Right(_) => Left(RuntimeError(stmt.name, "Superclass must be a class."))
+          case l @ Left(_) => l.rightCast
+        }
+      case None => Right((None, definedState))
+    }
+    superclassResult.flatMap { case (superclass, superclassState) =>
+      val staticMethods = stmt.staticMethods.map(method =>
+        method.name.lexeme -> new LoxFunction(Option(method.name), method.function, superclassState.environment, superclassState.resolvedLocals, isInitializer = false)
+      ).toMap
+      val metaclass = new LoxMetaClass(stmt.name, staticMethods)
+      val methods = stmt.methods.map { method =>
+        val isInitializer = method.name.lexeme == "init"
+        method.name.lexeme -> new LoxFunction(Option(method.name), method.function, superclassState.environment, superclassState.resolvedLocals, isInitializer)
+      }.toMap
+      val getters = stmt.getters.map { getter =>
+        getter.name.lexeme -> new LoxFunction(Option(getter.name), getter.function, superclassState.environment, superclassState.resolvedLocals, isInitializer = false)
+      }.toMap
+      debug(stmt, s"Creating class ${stmt.name.lexeme} with superclass ${superclass.map(_.name).getOrElse("(none)")} with methods ${methods.keys}")
+      val cls = new LoxClass(stmt.name, metaclass, superclass, methods, getters)
+      superclassState.assignVariable(stmt.name, CallableValue(cls))
+    }
   }
 
   private def executeContinueStmt(continue: Stmt.Continue, state: State): Either[InterpreterError, State] = {

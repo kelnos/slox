@@ -89,13 +89,23 @@ object RecursiveDescentParser extends LoxLogger {
       for {
         nameRes <- consume(Token.Type.Identifier, tokens)
         (name, tail1) = nameRes
-        _ = debug(name, s"Found class definition for ${name.lexeme}")
-        tail2 <- discard(Token.Type.LeftBrace, tail1)
-        methodsRes <- classBody(ClassBody(Nil, Nil, Nil), tail2)
-        (ClassBody(staticMethods, methods, getters), tail3) = methodsRes
+        subclassRes <- consume(Token.Type.Less, tail1)
+          .map { case (less, tail2) => (Option(less), tail2) }
+          .recover { case _ => (None, tail1) }
+          .flatMap {
+            case (Some(_), tail2) => consume(Token.Type.Identifier, tail2).map { case (superclassName, tail3) =>
+              (Option(Expr.Variable(superclassName)), tail3)
+            }
+            case (None, tail2) => Right((Option.empty[Expr.Variable], tail2))
+          }
+        (subclass, tail2) = subclassRes
+        _ = debug(name, s"Found class definition for ${name.lexeme} with subclass ${subclass.map(_.name.lexeme).getOrElse("(none)")}")
+        tail3 <- discard(Token.Type.LeftBrace, tail2)
+        methodsRes <- classBody(ClassBody(Nil, Nil, Nil), tail3)
+        (ClassBody(staticMethods, methods, getters), tail4) = methodsRes
         _ = debug(methods.lastOption.getOrElse(name), s"Got ${methods.length} methods for class ${name.lexeme}")
-        tail4 <- discard(Token.Type.RightBrace, tail3)
-      } yield (Stmt.Class(name, staticMethods, methods, getters), tail4)
+        tail5 <- discard(Token.Type.RightBrace, tail4)
+      } yield (Stmt.Class(name, subclass, staticMethods, methods, getters), tail5)
     }
 
     @tailrec

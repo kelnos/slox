@@ -1,0 +1,15 @@
+class Doughnut {
+  cook() {
+    print "Fry until golden brown.";
+  }
+
+  shape {
+      return "round";
+  }
+}
+
+class BostonCream < Doughnut {}
+
+BostonCream().cook();
+print Doughnut().shape;
+print BostonCream().shape;

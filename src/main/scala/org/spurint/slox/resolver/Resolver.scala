@@ -161,7 +161,8 @@ object Resolver extends LoxLogger {
       classState.scoped { innerState =>
         val thisState = innerState.define(Token.thisToken(stmt.line))
         for {
-          staticMethodsState <- stmt.staticMethods.foldLeft[Either[ResolverError, State]](Right(thisState))(
+          superclassState <- stmt.superclass.map(resolve(thisState, _)).getOrElse(Right(thisState))
+          staticMethodsState <- stmt.staticMethods.foldLeft[Either[ResolverError, State]](Right(superclassState))(
             (state, method) => state.flatMap(resolveFunction(_, method.function, FunctionType.Method))
           )
           methodsState <- stmt.methods.foldLeft[Either[ResolverError, State]](Right(staticMethodsState)) { (state, method) =>
