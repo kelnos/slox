@@ -50,7 +50,9 @@ object Resolver extends LoxLogger {
       scopes.head.collect {
         case (name, (line, varState)) if varState != VariableState.Read => (line, name)
       }.foreach { case (line, name) =>
-        warn(Token.dummyIdentifier(name, line), s"Local variable $name is not used")
+        if (name != "this" || classContext != ClassType.Class) {
+          warn(Token.dummyIdentifier(name, line), s"Local variable $name is not used")
+        }
       }
       copy(scopes = scopes.tail)
     }
