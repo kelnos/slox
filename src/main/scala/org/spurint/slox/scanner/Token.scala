@@ -75,6 +75,7 @@ object Token {
   }
 
   def thisToken(line: Int): Token = genToken(Token.Type.This, Token.Type.This.lexeme, line)
+  def superToken(line: Int): Token = genToken(Token.Type.Super, Token.Type.Super.lexeme, line)
 
   def dummyIdentifier(name: String, line: Int): Token = genToken(Token.Type.Identifier, name, line)
 

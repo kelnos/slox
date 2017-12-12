@@ -50,7 +50,7 @@ object Resolver extends LoxLogger {
       scopes.head.collect {
         case (name, (line, varState)) if varState != VariableState.Read => (line, name)
       }.foreach { case (line, name) =>
-        if (name != "this" || classContext != ClassType.Class) {
+        if ((name != "this" && name != "super") || classContext != ClassType.Class) {
           warn(Token.dummyIdentifier(name, line), s"Local variable $name is not used")
         }
       }
@@ -158,13 +158,11 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveClassStmt(state: State, stmt: Stmt.Class): Either[ResolverError, State] = {
-    val nameState = state.declare(stmt.name).define(stmt.name)
-    nameState.classBody(ClassType.Class) { classState =>
-      classState.scoped { innerState =>
+    def resolveClassBody(state: State): Either[ResolverError, State] = {
+      state.scoped { innerState =>
         val thisState = innerState.define(Token.thisToken(stmt.line))
         for {
-          superclassState <- stmt.superclass.map(resolve(thisState, _)).getOrElse(Right(thisState))
-          staticMethodsState <- stmt.staticMethods.foldLeft[Either[ResolverError, State]](Right(superclassState))(
+          staticMethodsState <- stmt.staticMethods.foldLeft[Either[ResolverError, State]](Right(thisState))(
             (state, method) => state.flatMap(resolveFunction(_, method.function, FunctionType.Method))
           )
           methodsState <- stmt.methods.foldLeft[Either[ResolverError, State]](Right(staticMethodsState)) { (state, method) =>
@@ -177,6 +175,21 @@ object Resolver extends LoxLogger {
             (state, getter) => state.flatMap(resolveFunction(_, getter.function, FunctionType.Method))
           )
         } yield finalState
+      }
+    }
+
+    val nameState = state.declare(stmt.name).define(stmt.name)
+    nameState.classBody(ClassType.Class) { classState =>
+      stmt.superclass match {
+        case Some(superclass) =>
+          resolve(classState, superclass).flatMap { superclassState =>
+            superclassState.scoped { superScopeState =>
+              val superDefinedState = superScopeState.define(Token.superToken(stmt.line))
+              resolveClassBody(superDefinedState)
+            }
+          }
+        case None =>
+          resolveClassBody(classState)
       }
     }
   }
@@ -245,6 +258,7 @@ object Resolver extends LoxLogger {
       case l: Expr.Literal => resolveLiteralExpr(state, l)
       case l: Expr.Logical => resolveLogicalExpr(state, l)
       case s: Expr.Set => resolveSetExpr(state, s)
+      case s: Expr.Super => resolveSuperExpr(state, s)
       case t: Expr.This => resolveThisExpr(state, t)
       case u: Expr.Unary => resolveUnaryExpr(state, u)
       case v: Expr.Variable => resolveVariableExpr(state, v)
@@ -317,6 +331,14 @@ object Resolver extends LoxLogger {
 
   private def resolveSetExpr(state: State, expr: Expr.Set): Either[ResolverError, State] = {
     resolve(state, expr.value).flatMap(resolve(_, expr.obj))
+  }
+
+  private def resolveSuperExpr(state: State, expr: Expr.Super): Either[ResolverError, State] = {
+    if (state.classContext != ClassType.Class) {
+      Left(ResolverError(expr.keyword, "Cannot use 'super' outside of a class."))
+    } else {
+      resolveLocal(state, expr, expr.keyword, isRead = true)
+    }
   }
 
   private def resolveThisExpr(state: State, expr: Expr.This): Either[ResolverError, State] = {

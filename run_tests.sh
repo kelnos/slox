@@ -17,7 +17,10 @@ TESTS_SUCCEED="
     for-loop-control.lox
     anonymous-fun.lox
     cls-methods.lox
+    cls-accessor.lox
     multiline-string.lox
+    cls-inheritance.lox
+    cls-inheritance-super.lox
 "
 
 TESTS_FAIL="

@@ -18,10 +18,18 @@ object Interpreter extends LoxLogger {
   case class Continue(state: State) extends ControlFlowChange
 
   case class State(environment: Environment, resolvedLocals: Map[Int, Int]) {
-    def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue] = {
+    def findVariableDistance(expr: Expr): Option[Int] = {
       resolvedLocals.get(System.identityHashCode(expr))
-        .map(environment.getAt(_, name))
+    }
+
+    def lookUpVariable(name: Token, expr: Expr): Option[LiteralValue] = {
+      findVariableDistance(expr)
+        .map(getVariableAt(_, name))
         .getOrElse(environment.getAtRoot(name))
+    }
+
+    def getVariableAt(distance: Int, name: Token): Option[LiteralValue] = {
+      environment.getAt(distance, name)
     }
 
     def defineVariable(name: Token, value: LiteralValue): State = copy(environment = environment.define(name, value))
@@ -124,16 +132,23 @@ object Interpreter extends LoxLogger {
   }
 
   private def executeClassStmt(stmt: Stmt.Class, state: State): Either[InterpreterError, State] = {
+    val curScopeId = state.environment.id
     val definedState = state.defineVariable(stmt.name, NilValue)
+
     val superclassResult = stmt.superclass match {
       case Some(superclass) =>
         evaluate(superclass, definedState) match {
-          case Right((CallableValue(cls: LoxClass), superclassState)) => Right(Option(cls), superclassState)
+          case Right((value @ CallableValue(cls: LoxClass), superclassState)) =>
+            val superDefinedState = superclassState
+              .pushScope(s"${stmt.name.lexeme}-super-${UUID.randomUUID()}")
+              .defineVariable(Token.superToken(stmt.line), value)
+            Right(Option(cls), superDefinedState)
           case Right(_) => Left(RuntimeError(stmt.name, "Superclass must be a class."))
           case l @ Left(_) => l.rightCast
         }
       case None => Right((None, definedState))
     }
+
     superclassResult.flatMap { case (superclass, superclassState) =>
       val staticMethods = stmt.staticMethods.map(method =>
         method.name.lexeme -> new LoxFunction(Option(method.name), method.function, superclassState.environment, superclassState.resolvedLocals, isInitializer = false)
@@ -146,9 +161,12 @@ object Interpreter extends LoxLogger {
       val getters = stmt.getters.map { getter =>
         getter.name.lexeme -> new LoxFunction(Option(getter.name), getter.function, superclassState.environment, superclassState.resolvedLocals, isInitializer = false)
       }.toMap
-      debug(stmt, s"Creating class ${stmt.name.lexeme} with superclass ${superclass.map(_.name).getOrElse("(none)")} with methods ${methods.keys}")
-      val cls = new LoxClass(stmt.name, metaclass, superclass, methods, getters)
-      superclassState.assignVariable(stmt.name, CallableValue(cls))
+
+      stmt.superclass.map(_ => superclassState.popScopeTo(curScopeId)).getOrElse(Right(superclassState)).flatMap { outerState =>
+        debug(stmt, s"Creating class ${stmt.name.lexeme} with superclass ${superclass.map(_.name).getOrElse("(none)")} with methods ${methods.keys.mkString("(", ", ", ")")}")
+        val cls = new LoxClass(stmt.name, metaclass, superclass, methods, getters)
+        outerState.assignVariable(stmt.name, CallableValue(cls))
+      }
     }
   }
 
@@ -245,6 +263,7 @@ object Interpreter extends LoxLogger {
       case c: Expr.Call => evaluateCall(c, state)
       case g: Expr.Get => evaluateGet(g, state)
       case s: Expr.Set => evaluateSet(s, state)
+      case s: Expr.Super => evaluateSuper(s, state)
       case t: Expr.This => evaluateThis(t, state)
     }
   }
@@ -371,6 +390,19 @@ object Interpreter extends LoxLogger {
         case (value, state2) => instance.set(set.name, value).map(value => (value, state2))
       }
     }
+  }
+
+  private def evaluateSuper(superExpr: Expr.Super, state: State): Either[InterpreterError, (LiteralValue, State)] = {
+    val maybeMethod = for {
+      distance <- state.findVariableDistance(superExpr)
+      CallableValue(superclass: LoxClassBase) <- state.getVariableAt(distance, superExpr.keyword)
+      ClassInstanceValue(instance) <- state.getVariableAt(distance - 1, Token.thisToken(superExpr.line))
+      method <- superclass.findMethod(instance, superExpr.method.lexeme)
+    } yield method
+
+    maybeMethod
+      .map(method => Right((method, state)))
+      .getOrElse(Left(RuntimeError(superExpr.keyword, s"Undefined property ${superExpr.method.lexeme}.")))
   }
 
   private def evaluateThis(thisExpr: Expr.This, state: State): Either[InterpreterError, (LiteralValue, State)] = {

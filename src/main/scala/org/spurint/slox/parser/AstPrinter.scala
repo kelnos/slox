@@ -24,6 +24,7 @@ object ExprAstPrinters {
   implicit val literalPrinter: AstPrinter[Literal] = (expr: Literal) => expr.value.toString
   implicit val logicalPrinter: AstPrinter[Logical] = (expr: Logical) => parenthesize(expr.operator.lexeme, expr.left, expr.right)
   implicit val setPrinter: AstPrinter[Set] = (expr: Set) => parenthesize(expr.name.lexeme, expr.obj, expr.value)
+  implicit val superPrinter: AstPrinter[Super] = (expr: Super) => expr.keyword.lexeme
   implicit val thisPrinter: AstPrinter[This] = (expr: This) => expr.keyword.lexeme
   implicit val unaryPrinter: AstPrinter[Unary] = (expr: Unary) => parenthesize(expr.operator.lexeme, expr.right)
   implicit val variablePrinter: AstPrinter[Variable] = (expr: Variable) => expr.name.lexeme
@@ -38,6 +39,7 @@ object ExprAstPrinters {
     case l: Literal => literalPrinter(l)
     case l: Logical => logicalPrinter(l)
     case s: Set => setPrinter(s)
+    case s: Super => superPrinter(s)
     case t: This => thisPrinter(t)
     case u: Unary => unaryPrinter(u)
     case v: Variable => variablePrinter(v)

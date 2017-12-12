@@ -365,6 +365,12 @@ object RecursiveDescentParser extends LoxLogger {
         }
       case Some(token @ Token(Token.Type.This, _, _)) =>
         Right((Expr.This(token), tokens.tail))
+      case Some(keyword @ Token(Token.Type.Super, _, _)) =>
+        for {
+          tail <- discard(Token.Type.Dot, tokens.tail)
+          identifierRes <- consume(Token.Type.Identifier, tail)
+          (identifier, tail1) = identifierRes
+        } yield (Expr.Super(keyword, identifier), tail1)
       case Some(token @ Token(Token.Type.Identifier, _, _)) =>
         Right((Expr.Variable(token), tokens.tail))
       case Some(token) if token.`type` == Token.Type.LeftParen =>
