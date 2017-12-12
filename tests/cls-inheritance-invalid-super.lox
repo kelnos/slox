@@ -1,0 +1,8 @@
+class A {
+    moo() {
+        super.bar();
+        return "moo";
+    }
+}
+
+print A().moo();

@@ -30,6 +30,7 @@ TESTS_FAIL="
     arity.lox
     funny-scope.lox
     for-undefined.lox
+    cls-inheritance-invalid-super.lox
 "
 
 run() {

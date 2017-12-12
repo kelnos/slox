@@ -26,6 +26,7 @@ object Resolver extends LoxLogger {
   object ClassType {
     case object None extends ClassType
     case object Class extends ClassType
+    case object Subclass extends ClassType
   }
 
   sealed trait LoopType
@@ -50,7 +51,7 @@ object Resolver extends LoxLogger {
       scopes.head.collect {
         case (name, (line, varState)) if varState != VariableState.Read => (line, name)
       }.foreach { case (line, name) =>
-        if ((name != "this" && name != "super") || classContext != ClassType.Class) {
+        if ((name != "this" && name != "super") || classContext == ClassType.None) {
           warn(Token.dummyIdentifier(name, line), s"Local variable $name is not used")
         }
       }
@@ -182,10 +183,12 @@ object Resolver extends LoxLogger {
     nameState.classBody(ClassType.Class) { classState =>
       stmt.superclass match {
         case Some(superclass) =>
-          resolve(classState, superclass).flatMap { superclassState =>
-            superclassState.scoped { superScopeState =>
-              val superDefinedState = superScopeState.define(Token.superToken(stmt.line))
-              resolveClassBody(superDefinedState)
+          classState.classBody(ClassType.Subclass) { subclassState =>
+            resolve(subclassState, superclass).flatMap { superclassState =>
+              superclassState.scoped { superScopeState =>
+                val superDefinedState = superScopeState.define(Token.superToken(stmt.line))
+                resolveClassBody(superDefinedState)
+              }
             }
           }
         case None =>
@@ -334,15 +337,15 @@ object Resolver extends LoxLogger {
   }
 
   private def resolveSuperExpr(state: State, expr: Expr.Super): Either[ResolverError, State] = {
-    if (state.classContext != ClassType.Class) {
-      Left(ResolverError(expr.keyword, "Cannot use 'super' outside of a class."))
-    } else {
-      resolveLocal(state, expr, expr.keyword, isRead = true)
+    state.classContext match {
+      case ClassType.None => Left(ResolverError(expr.keyword, "Cannot use 'super' outside of a class."))
+      case ClassType.Class => Left(ResolverError(expr.keyword, "Cannot use 'super' in a class with no superclass."))
+      case ClassType.Subclass => resolveLocal(state, expr, expr.keyword, isRead = true)
     }
   }
 
   private def resolveThisExpr(state: State, expr: Expr.This): Either[ResolverError, State] = {
-    if (state.classContext != ClassType.Class) {
+    if (state.classContext == ClassType.None) {
       Left(ResolverError(expr.keyword, "Cannot use 'this' outside of a class."))
     } else {
       resolveLocal(state, expr, expr.keyword, isRead = true)
