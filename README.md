@@ -9,11 +9,6 @@ immutable data, type-safer, `null`-free, exception-free, etc.) way.
 I did a quick search and didn't find any other Scala implementations,
 though admittedly it was a *very* quick search.
 
-**NB**: I'm currently working my way through the book, so this is
-incomplete, and at the time I'm writing this, the book itself is
-incomplete (only 12 of the 30 expected chapters are published, and
-chapter 12 doesn't quite finish the first tree-walk interpreter).
-
 ## Usage
 
 ### Building
