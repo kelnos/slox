@@ -1,6 +1,6 @@
 package org.spurint.slox.model
 
-import org.spurint.slox.interpreter.LoxInstance
+import org.spurint.slox.interpreter.Instance
 
 sealed trait LiteralValue
 
@@ -12,7 +12,7 @@ object LiteralValue {
   case class IdentifierValue(value: String) extends LiteralValue { override val toString: String = value }
   case class CommentValue(value: String) extends LiteralValue { override val toString: String = value }
   case class CallableValue(value: LoxCallable) extends LiteralValue { override val toString: String = value.toString }
-  case class ClassInstanceValue(value: LoxInstance) extends LiteralValue { override val toString: String = value.toString }
+  case class ClassInstanceValue(value: Instance) extends LiteralValue { override val toString: String = value.toString }
   case class GettableValue(value: LoxCallable) extends LiteralValue { override val toString: String = value.toString }
 
   private def fmtNumber(number: Double): String = {

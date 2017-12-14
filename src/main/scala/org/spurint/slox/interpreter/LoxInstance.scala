@@ -1,27 +1,21 @@
 package org.spurint.slox.interpreter
 
-import org.spurint.slox.interpreter.Interpreter.{InterpreterError, RuntimeError}
 import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.scanner.Token
 import scala.collection.mutable
 
-class LoxInstance(cls: LoxClassBase) {
+class LoxInstance(override protected val cls: LoxClassBase) extends Instance {
   // FIXME: this is the only place where we have mutable state and i need to fix that later
   private val fields = new mutable.HashMap[String, LiteralValue]
 
-  def name: String = cls.name
-
-  def get(name: Token): Either[InterpreterError, LiteralValue] = {
+  override def get(name: Token): Option[LiteralValue] = {
     fields.get(name.lexeme)
-      .orElse(cls.findGetter(this, name.lexeme))
-      .orElse(cls.findMethod(this, name.lexeme))
-      .map(Right.apply)
-      .getOrElse(Left(RuntimeError(name, s"Undefined property '${name.lexeme}'.")))
+      .orElse(super.get(name))
   }
 
-  def set(name: Token, value: LiteralValue): Either[InterpreterError, LiteralValue] = {
+  override def set(name: Token, value: LiteralValue): LiteralValue = {
     fields.put(name.lexeme, value)
-    Right(value)
+    value
   }
 
   override lazy val toString: String = s"<${cls.name} $name>"

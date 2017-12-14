@@ -8,8 +8,8 @@ import org.spurint.slox.scanner.Token
 class LoxClass(nameToken: Token,
                metaclass: LoxMetaClass,
                protected val superclass: Option[LoxClassBase],
-               protected val methods: Map[String, LoxFunction],
-               protected val getters: Map[String, LoxFunction])
+               protected val methods: Map[String, LoxFunctionBase],
+               protected val getters: Map[String, LoxFunctionBase])
   extends LoxInstance(metaclass)
   with LoxClassBase
   with LoxCallable

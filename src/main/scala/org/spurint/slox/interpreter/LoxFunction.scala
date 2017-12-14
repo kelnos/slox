@@ -2,8 +2,8 @@ package org.spurint.slox.interpreter
 
 import java.util.UUID
 import org.spurint.slox.interpreter.Interpreter.{InterpreterError, RuntimeError}
-import org.spurint.slox.model.LiteralValue.{CallableValue, ClassInstanceValue, NilValue}
-import org.spurint.slox.model.{LiteralValue, LoxCallable}
+import org.spurint.slox.model.LiteralValue
+import org.spurint.slox.model.LiteralValue.{CallableValue, NilValue}
 import org.spurint.slox.parser.Expr
 import org.spurint.slox.scanner.Token
 import org.spurint.slox.util.{EitherEnrichments, LoxLogger}
@@ -18,17 +18,15 @@ object LoxFunction {
   }
 }
 
-class LoxFunction(fname: Option[Token], private val declaration: Expr.Function, closure: Environment, resolvedLocals: Map[Int, Int], isInitializer: Boolean) extends LoxCallable with LoxLogger {
+class LoxFunction(fname: Option[Token], private val declaration: Expr.Function, override protected val closure: Environment, resolvedLocals: Map[Int, Int], isInitializer: Boolean) extends LoxFunctionBase with LoxLogger {
   override def name: String = fname.map(_.lexeme).getOrElse(s"<fn@$line>")
   override def arity: Int = declaration.parameters.length
   override def line: Int = fname.map(_.line).getOrElse(declaration.line)
 
   private val hackedClosure = fname.map(LoxFunction.hackFunctionRefInto(_, this, closure)).getOrElse(closure)
 
-  def bind(instance: LoxInstance): LoxFunction = {
-    val boundEnvironment = closure.pushScope(s"fbind-$name-${UUID.randomUUID()}")
-    val boundThisEnvironment = boundEnvironment.define(Token.thisToken(line), ClassInstanceValue(instance))
-    new LoxFunction(fname, declaration, boundThisEnvironment, resolvedLocals, isInitializer)
+  override protected def withNewEnvironment(environment: Environment): LoxFunctionBase = {
+    new LoxFunction(fname, declaration, environment, resolvedLocals, isInitializer)
   }
 
   override def call(environment: Environment, arguments: Seq[LiteralValue]): Either[InterpreterError, (LiteralValue, Environment)] = {

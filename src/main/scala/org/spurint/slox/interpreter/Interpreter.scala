@@ -373,9 +373,10 @@ object Interpreter extends LoxLogger {
       case _ => Left(RuntimeError(get.name, "Only classes and instances have properties."))
     }.flatMap { case (instance, state1) =>
       instance.get(get.name) match {
-        case Right(GettableValue(function)) => evaluateCallable(get.name, function, Seq.empty, state1)
-        case Right(value: LiteralValue) => Right((value, state1))
-        case l @ Left(_) => l.rightCast
+        case Some(GettableValue(function)) => evaluateCallable(get.name, function, Seq.empty, state1)
+        case Some(value: LiteralValue) => Right((value, state1))
+        case Some(value) => Left(RuntimeError(get.name, s"Invalid value '$value' in get expression"))
+        case None => Left(RuntimeError(get.name, s"Undefined property '${get.name.lexeme}'."))
       }
     }
   }
@@ -386,8 +387,8 @@ object Interpreter extends LoxLogger {
       case (CallableValue(cls: LoxClass), state1) => Right((cls, state1))
       case _ => Left(RuntimeError(set.name, "Only classes and instances have properties."))
     }.flatMap { case (instance, state1) =>
-      evaluate(set.value, state1).flatMap {
-        case (value, state2) => instance.set(set.name, value).map(value => (value, state2))
+      evaluate(set.value, state1).map {
+        case (value, state2) => (instance.set(set.name, value), state2)
       }
     }
   }
