@@ -16,8 +16,11 @@ object FileClass extends NativeClass {
     "readLine",
     "writeLine",
     "flush",
-    "size",
     "close",
+  )
+
+  override protected[native] def _getterNames: Set[String] = Set(
+    "size",
   )
 
   def init(cls: LoxClass, filename: String, mode: String): Either[InitializationError, FileClass] = {
@@ -49,7 +52,7 @@ class FileClass(override protected val cls: LoxClass, filename: String, mode: St
     writer.foreach(_.flush())
   }
 
-  def size(): Long = {
+  def size: Long = {
     Try(new File(filename).length()).getOrElse(0)
   }
 

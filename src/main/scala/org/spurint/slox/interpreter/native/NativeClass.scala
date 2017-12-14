@@ -108,7 +108,8 @@ object NativeClass {
     val (initializerMethods, staticMethods) = companionMethods.partition { case (name, _) => name == "init" }
     val metaclass = new LoxMetaClass(nameToken, staticMethods)
     val methods = initializerMethods ++ cls.map(wrapMethods(_, companion._methodNames, environment, staticInstance = None)).getOrElse(Map.empty)
-    new LoxNativeClass(nameToken, metaclass, superclass = None, methods, Map.empty)
+    val getters = cls.map(wrapMethods(_, companion._getterNames, environment, staticInstance = None)).getOrElse(Map.empty)
+    new LoxNativeClass(nameToken, metaclass, superclass = None, methods, getters)
   }
 
   private val methodBlacklist: Seq[(String, Seq[Class[_]])] = Seq(
@@ -141,4 +142,5 @@ abstract class NativeClass {
   protected[native] def _staticMethodNames: Set[String]
   protected[native] def _instanceCls: Option[Class[_ <: NativeInstance]]
   protected[native] def _methodNames: Set[String]
+  protected[native] def _getterNames: Set[String] = Set.empty
 }

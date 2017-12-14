@@ -81,6 +81,9 @@ each chapter that I've gotten around to implementing so far.
   natural to me, and also leaves open the possibility of using `class`
   inside a class body to support inner classes.
 * Classes support 'getters' (property access that runs a block of code).
+* I've implemented a fairly-easy way to build builtin classes, and added
+  simple `List` and `File` classes, as well as a `System` class with
+  some system-related functions.
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.

@@ -20,6 +20,9 @@ object ListClass extends NativeClass {
     "pop",
     "get",
     "set",
+  )
+
+  override protected[native] def _getterNames: Set[String] = Set(
     "length",
   )
 
@@ -64,5 +67,5 @@ class ListClass(override protected val cls: LoxClass, initialItems: Seq[LiteralV
     this
   }
 
-  def length(): Int = items.length
+  def length: Int = items.length
 }
