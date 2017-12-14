@@ -111,9 +111,24 @@ object NativeClass {
     new LoxNativeClass(nameToken, metaclass, superclass = None, methods, Map.empty)
   }
 
+  private val methodBlacklist: Seq[(String, Seq[Class[_]])] = Seq(
+    ("get", Seq(classOf[Token])),
+    ("set", Seq(classOf[Token], classOf[LiteralValue])),
+    ("findMethod", Seq(classOf[Instance], classOf[String])),
+    ("findGetter", Seq(classOf[Instance], classOf[String])),
+    ("call", Seq(classOf[Environment], classOf[Seq[LiteralValue]])),
+  )
+
+  private def isInBlacklist(m: Method): Boolean = {
+    methodBlacklist.exists { case (name, paramTypes) =>
+      name == m.getName && m.getParameterTypes.toSeq == paramTypes
+    }
+  }
+
   private def wrapMethods(cls: Class[_], methodNames: Set[String], environment: Environment, staticInstance: Option[NativeClass]): Map[String, LoxFunctionBase] = {
     cls.getMethods
       .filter(m => methodNames.contains(m.getName))
+      .filterNot(isInBlacklist)
       .foldLeft(Seq.empty[LoxFunctionBase])((ms, m) => ms :+ new NativeClassFunction(m, environment, staticInstance))
       .map(f => (f.name, f))
       .toMap
