@@ -56,17 +56,10 @@ object Interpreter extends LoxLogger {
   }
 
   def apply(stmts: Seq[Stmt],
-            initialEnvironment: Option[Environment] = None,
-            resolvedLocals: Map[Int, Int] = Map.empty[Int, Int]): Either[InterpreterError, Environment] =
-  {
-    apply(stmts, State(initialEnvironment.getOrElse(Environment.global), resolvedLocals))
-  }
-
-  def apply(stmts: Seq[Stmt],
             initialEnvironment: Environment,
             resolvedLocals: Map[Int, Int]): Either[InterpreterError, Environment] =
   {
-    apply(stmts, Option(initialEnvironment), resolvedLocals)
+    apply(stmts, State(initialEnvironment, resolvedLocals))
   }
 
   private def apply(stmts: Seq[Stmt], initialState: State): Either[InterpreterError, Environment] = {

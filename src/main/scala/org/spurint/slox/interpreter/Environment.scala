@@ -11,9 +11,9 @@ object Environment {
   case class ScopeError(id: Option[String] = None)
   case class UndefinedVariableError(variable: Token)
 
-  val global: Environment = {
+  def global(argv: Seq[String]): Environment = {
     val env = Environment("GLOBAL")
-    native.registerNativeFunctions(env)
+    native.registerNativeFunctions(argv, env)
   }
 
   def apply(id: String): Environment = new Environment(id, Map.empty[String, LiteralValue], enclosing = None)

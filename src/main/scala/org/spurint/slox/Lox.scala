@@ -75,7 +75,7 @@ object Lox extends App with LoxLogger {
                         initialEnvironment: Option[Environment],
                         resolvedLocals: Map[Int, Int]): Either[LoxError, Environment] =
   {
-    Interpreter(stmts, initialEnvironment, resolvedLocals).leftMap {
+    Interpreter(stmts, initialEnvironment.getOrElse(Environment.global(args)), resolvedLocals).leftMap {
       case RuntimeError(token, message) => LoxError(token.line, s"$message: ${token.lexeme}")
       case _: Interpreter.ControlFlowChange => LoxError(-1, s"BUG: Got control flow change outside function call")
     }
@@ -126,7 +126,6 @@ object Lox extends App with LoxLogger {
 
   args.length match {
     case 0 => runPrompt()
-    case 1 => runFile(args(0))
-    case _ => error("Usage: slox [script]"); sys.exit(1)
+    case _ => runFile(args(0))
   }
 }
