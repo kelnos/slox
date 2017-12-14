@@ -10,6 +10,8 @@ import org.spurint.slox.util.LoxLogger
 import scala.util.{Failure, Success, Try}
 
 object NativeClass {
+  case class InitializationError(name: Token, message: String)
+
   class NativeClassFunction(method: Method, override protected val closure: Environment, staticInstance: Option[NativeClass]) extends LoxFunctionBase with LoxLogger {
     override val name: String = method.getName
     override val arity: Int = if (name == "init") method.getParameterCount - 1 else method.getParameterCount
@@ -32,6 +34,9 @@ object NativeClass {
     private def convertToLox(value: Any): Either[InterpreterError, LiteralValue] = {
       value match {
         case null | () => Right(NilValue)
+        case Left(InitializationError(n, message)) => Left(RuntimeError(n, message))
+        case Right(l: LiteralValue) => Right(l)
+        case Right(i: Instance) => Right(ClassInstanceValue(i))
         case l: LiteralValue => Right(l)
         case i: Instance => Right(ClassInstanceValue(i))
         case i: Int => Right(NumberValue(i))
@@ -54,6 +59,7 @@ object NativeClass {
       for {
         instance <- fetchInstance(closure)
         nativeArgs <- arguments.zip(method.getParameterTypes).map {
+          case (l: LiteralValue, cls) if cls.isAssignableFrom(classOf[LiteralValue]) => Right(l)
           case (NilValue, _) => Right(null)
           case (ClassInstanceValue(i), cls) if cls.isAssignableFrom(i.getClass) => Right(i)
           case (NumberValue(n), cls) if cls.isAssignableFrom(classOf[Long]) => Right(Long.box(n.toLong))
@@ -116,6 +122,7 @@ object NativeClass {
 
 abstract class NativeClass {
   def name: String
+  protected lazy val nameToken: Token = Token.dummyIdentifier(name, 0)
   protected[native] def _staticMethodNames: Set[String]
   protected[native] def _instanceCls: Option[Class[_ <: NativeInstance]]
   protected[native] def _methodNames: Set[String]
