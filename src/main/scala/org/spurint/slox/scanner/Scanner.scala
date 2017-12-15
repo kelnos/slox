@@ -47,6 +47,9 @@ object Scanner extends RegexParsers {
     Token.Type.While,
     Token.Type.Continue,
     Token.Type.Break,
+    Token.Type.Try,
+    Token.Type.Catch,
+    Token.Type.Finally,
   )
 
   private val constLiteralTokenList = Seq[ConstLiteralType](

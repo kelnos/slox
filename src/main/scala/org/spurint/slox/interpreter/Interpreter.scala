@@ -1,6 +1,7 @@
 package org.spurint.slox.interpreter
 
 import java.util.UUID
+import org.spurint.slox.interpreter.native.ExceptionClass
 import org.spurint.slox.model.LiteralValue._
 import org.spurint.slox.model.{LiteralValue, LoxCallable}
 import org.spurint.slox.parser.{Expr, Stmt}
@@ -11,6 +12,7 @@ import scala.annotation.tailrec
 object Interpreter extends LoxLogger {
   sealed trait InterpreterError
   case class RuntimeError(token: Token, message: String) extends InterpreterError
+  case class ExceptionalError(token: Token, message: String) extends InterpreterError
 
   sealed trait ControlFlowChange extends InterpreterError
   case class Return(value: LiteralValue, environment: Environment) extends ControlFlowChange
@@ -89,6 +91,7 @@ object Interpreter extends LoxLogger {
       case i: Stmt.If => executeIfStmt(i, state)
       case p: Stmt.Print => executePrintStmt(p, state)
       case r: Stmt.Return => executeReturnStmt(r, state)
+      case t: Stmt.TryCatch => executeTryCatchStmt(t, state)
       case v: Stmt.Var => executeVarStmt(v, state)
     }
   }
@@ -199,6 +202,32 @@ object Interpreter extends LoxLogger {
 
   private def executeReturnStmt(stmt: Stmt.Return, state: State): Either[InterpreterError, State] = {
     evaluate(stmt.value, state).flatMap { case (expr, state1) => Left(Return(expr, state1.environment)) }
+  }
+
+  private def executeTryCatchStmt(stmt: Stmt.TryCatch, state: State): Either[InterpreterError, State] = {
+    execute(stmt.tryBranch, state).recoverWith {
+      case ExceptionalError(token, message) =>
+        state.environment.getAtRoot(Token.dummyIdentifier("Exception", 0)) match {
+          case Some(CallableValue(cls: LoxClassBase)) =>
+            val catchState = state.pushScope(s"catch-${UUID.randomUUID()}")
+            val exception = new ExceptionClass(cls, token.line, message)
+            val catchDefinedState = catchState.defineVariable(stmt.exceptionIdentifier, ClassInstanceValue(exception))
+            execute(stmt.catchBranch, catchDefinedState).flatMap { caughtState =>
+              caughtState.popScopeTo(state.environment.id)
+            }
+          case _ => Left(RuntimeError(stmt.keyword, "BUG: can't find toplevel Exception class"))
+        }
+    }.recoverWith { case err =>
+      stmt.finallyBranch match {
+        case Some(finallyBranch) => execute(finallyBranch, state).flatMap(_ => Left(err))
+        case None => Left(err)
+      }
+    }.flatMap { finallyState =>
+      stmt.finallyBranch match {
+        case Some(finallyBranch) => execute(finallyBranch, finallyState)
+        case None => Right(finallyState)
+      }
+    }
   }
 
   private def executeVarStmt(stmt: Stmt.Var, state: State): Either[InterpreterError, State] = {
@@ -315,7 +344,7 @@ object Interpreter extends LoxLogger {
       case (NumberValue(ln), NumberValue(rn)) => operator.`type` match {
         case Token.Type.Star => Right(NumberValue(ln * rn))
         case Token.Type.Slash =>
-          if (rn == 0) Left(RuntimeError(operator, "Division by zero"))
+          if (rn == 0) Left(ExceptionalError(operator, "Division by zero"))
           else Right(NumberValue(ln / rn))
         case Token.Type.Plus => Right(NumberValue(ln + rn))
         case Token.Type.Minus => Right(NumberValue(ln - rn))

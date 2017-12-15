@@ -1,7 +1,7 @@
 package org.spurint.slox.interpreter.native
 
 import java.lang.reflect.Method
-import org.spurint.slox.interpreter.Interpreter.{InterpreterError, RuntimeError}
+import org.spurint.slox.interpreter.Interpreter.InterpreterError
 import org.spurint.slox.interpreter._
 import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.model.LiteralValue._
@@ -10,7 +10,12 @@ import org.spurint.slox.util.LoxLogger
 import scala.util.{Failure, Success, Try}
 
 object NativeClass {
-  case class InitializationError(name: Token, message: String)
+  trait NativeError {
+    def name: Token
+    def message: String
+  }
+  case class RuntimeError(name: Token, message: String) extends NativeError
+  case class ExceptionalError(name: Token, message: String) extends NativeError
 
   class NativeClassFunction(method: Method, override protected val closure: Environment, staticInstance: Option[NativeClass]) extends LoxFunctionBase with LoxLogger {
     override val name: String = method.getName
@@ -25,8 +30,8 @@ object NativeClass {
       staticInstance.map(Right.apply).getOrElse(
         environment.getAt(0, Token.thisToken(0)) match {
           case Some(ClassInstanceValue(instance)) => Right(instance)
-          case Some(x) => Left(RuntimeError(token, s"BUG: invalid type for 'this' pointer: ${x.getClass.getSimpleName}"))
-          case None => Left(RuntimeError(token, s"BUG: missing 'this' pointer"))
+          case Some(x) => Left(Interpreter.RuntimeError(token, s"BUG: invalid type for 'this' pointer: ${x.getClass.getSimpleName}"))
+          case None => Left(Interpreter.RuntimeError(token, s"BUG: missing 'this' pointer"))
         }
       )
     }
@@ -34,7 +39,8 @@ object NativeClass {
     private def convertToLox(value: Any): Either[InterpreterError, LiteralValue] = {
       value match {
         case null | () => Right(NilValue)
-        case Left(InitializationError(n, message)) => Left(RuntimeError(n, message))
+        case Left(RuntimeError(n, message)) => Left(Interpreter.RuntimeError(n, message))
+        case Left(ExceptionalError(n, message)) => Left(Interpreter.ExceptionalError(n, message))
         case Right(l: LiteralValue) => Right(l)
         case Right(i: Instance) => Right(ClassInstanceValue(i))
         case l: LiteralValue => Right(l)
@@ -47,7 +53,7 @@ object NativeClass {
         case bd: BigDecimal => Right(NumberValue(bd.doubleValue))
         case s: String => Right(StringValue(s))
         case b: Boolean => Right(BooleanValue(b))
-        case x => Left(RuntimeError(token, s"BUG: invalid type for native method return: ${x.getClass.getSimpleName}"))
+        case x => Left(Interpreter.RuntimeError(token, s"BUG: invalid type for native method return: ${x.getClass.getSimpleName}"))
       }
     }
 
@@ -70,7 +76,7 @@ object NativeClass {
           case (NumberValue(n), cls) if cls.isAssignableFrom(classOf[BigDecimal]) => Right(BigDecimal(n))
           case (StringValue(s), cls) if cls.isAssignableFrom(classOf[String]) => Right(s)
           case (BooleanValue(b), cls) if cls.isAssignableFrom(classOf[Boolean]) => Right(Boolean.box(b))
-          case (v, cls) => Left[InterpreterError, AnyRef](RuntimeError(token, s"Can't convert ${v.getClass.getSimpleName} to ${cls.getSimpleName}"))
+          case (v, cls) => Left[InterpreterError, AnyRef](Interpreter.RuntimeError(token, s"Can't convert ${v.getClass.getSimpleName} to ${cls.getSimpleName}"))
         }.foldLeft[Either[InterpreterError, Seq[AnyRef]]](Right(Seq.empty)) {
           case (l @ Left(_), _) => l
           case (_, Left(err)) => Left(err)
@@ -78,7 +84,7 @@ object NativeClass {
         }
         result <- Try(method.invoke(instance, nativeArgs: _*)) match {
           case Success(r) => Right(r)
-          case Failure(t) => Left(RuntimeError(token, s"Failed to run native function: $t"))
+          case Failure(t) => Left(Interpreter.RuntimeError(token, s"Failed to run native function: $t"))
         }
         returnValue <- convertToLox(result)
       } yield (returnValue, environment)

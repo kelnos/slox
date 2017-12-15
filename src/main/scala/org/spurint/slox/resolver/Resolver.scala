@@ -139,6 +139,7 @@ object Resolver extends LoxLogger {
       case f: Stmt.If => resolveIfStmt(state, f)
       case p: Stmt.Print => resolvePrintStmt(state, p)
       case r: Stmt.Return => resolveReturnStmt(state, r)
+      case t: Stmt.TryCatch => resolveTryCatchStmt(state, t)
       case v: Stmt.Var => resolveVarStmt(state, v)
     }
   }
@@ -240,6 +241,19 @@ object Resolver extends LoxLogger {
       case FunctionType.None => Left(ResolverError(stmt.keyword, "Cannot return from top-level code."))
       case FunctionType.Initializer => Left(ResolverError(stmt.keyword, "Cannot return a value from an initializer."))
       case FunctionType.Function | FunctionType.Method => resolve(state, stmt.value)
+    }
+  }
+
+  private def resolveTryCatchStmt(state: State, stmt: Stmt.TryCatch): Either[ResolverError, State] = {
+    resolve(state, stmt.tryBranch).flatMap { state1 =>
+      state1.scoped { state2 =>
+        val state3 = state2.declare(stmt.exceptionIdentifier).define(stmt.exceptionIdentifier)
+        resolve(state3, stmt.catchBranch)
+      }
+    }.flatMap { state4 =>
+      stmt.finallyBranch
+        .map(resolve(state4, _))
+        .getOrElse(Right(state4))
     }
   }
 

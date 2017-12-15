@@ -1,0 +1,20 @@
+var e = Exception(22, "foo");
+print e.message;
+print e.line;
+
+try {
+    var f = File("asdasdsad", "r");
+    print f.size;
+} catch (e) {
+    print "Failed to open file: " + e.message;
+} finally {
+    print "We always get here";
+}
+
+try {
+    print "ok";
+} catch (e) {
+    print "We never get here";
+} finally {
+    print "Again, we always get here";
+}

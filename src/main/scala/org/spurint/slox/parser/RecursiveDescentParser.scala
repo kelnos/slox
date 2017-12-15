@@ -43,6 +43,7 @@ object RecursiveDescentParser extends LoxLogger {
                Token.Type.While |
                Token.Type.Print |
                Token.Type.Return |
+               Token.Type.Try |
                Token.Type.Eof =>
             tokens
           case _ =>
@@ -220,6 +221,7 @@ object RecursiveDescentParser extends LoxLogger {
           case Token.Type.Return => returnStatement(token, tokens.tail)
           case Token.Type.Break => breakStatement(token, tokens.tail)
           case Token.Type.Continue => continueStatement(token, tokens.tail)
+          case Token.Type.Try => tryCatchStatement(token, tokens.tail)
           case _ => expressionStatement(tokens)
         }
       case _ => expressionStatement(tokens)
@@ -342,6 +344,24 @@ object RecursiveDescentParser extends LoxLogger {
 
   private def continueStatement(continueToken: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
     discard(Token.Type.Semicolon, tokens).map(tail => (Stmt.Continue(continueToken), tail))
+  }
+
+  private def tryCatchStatement(token: Token, tokens: Seq[Token]): Either[ParserError, (Stmt, Seq[Token])] = {
+    for {
+      tryBranchRes <- statement(tokens)
+      (tryBranch, tail1) = tryBranchRes
+      tail2 <- discard(Token.Type.Catch, tail1)
+      tail3 <- discard(Token.Type.LeftParen, tail2)
+      exceptionIdentifierRes <- consume(Token.Type.Identifier, tail3)
+      (exceptionIdentifier, tail4) = exceptionIdentifierRes
+      tail5 <- discard(Token.Type.RightParen, tail4)
+      catchBranchRes <- statement(tail5)
+      (catchBranch, tail6) = catchBranchRes
+      finallyBranchRes <- discard(Token.Type.Finally, tail6)
+        .flatMap(statement).map { case (stmt, tail7) => (Option(stmt), tail7) }
+        .recover { case _ => (None, tail6) }
+      (finallyBranch, tail8) = finallyBranchRes
+    } yield (Stmt.TryCatch(token, tryBranch, exceptionIdentifier, catchBranch, finallyBranch), tail8)
   }
 
   // this is used only for error display, not actual program logic

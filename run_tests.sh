@@ -21,6 +21,7 @@ TESTS_SUCCEED="
     multiline-string.lox
     cls-inheritance.lox
     cls-inheritance-super.lox
+    exceptions.lox
 "
 
 TESTS_FAIL="

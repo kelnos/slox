@@ -1,7 +1,7 @@
 package org.spurint.slox.interpreter.native
 
 import org.spurint.slox.interpreter.LoxClass
-import org.spurint.slox.interpreter.native.NativeClass.InitializationError
+import org.spurint.slox.interpreter.native.NativeClass.{RuntimeError, NativeError}
 import org.spurint.slox.model.LiteralValue
 import org.spurint.slox.model.LiteralValue.{ClassInstanceValue, NilValue}
 import scala.collection.mutable
@@ -26,11 +26,11 @@ object ListClass extends NativeClass {
     "length",
   )
 
-  def init(cls: LoxClass, initialItems: LiteralValue): Either[InitializationError, ListClass] = {
+  def init(cls: LoxClass, initialItems: LiteralValue): Either[NativeError, ListClass] = {
     initialItems match {
       case NilValue => Right(new ListClass(cls, Seq.empty[LiteralValue]))
       case ClassInstanceValue(list: ListClass) => Right(new ListClass(cls, list.items))
-      case x => Left(InitializationError(nameToken, s"Invalid argument passed to constructor: $x"))
+      case x => Left(RuntimeError(nameToken, s"Invalid argument passed to constructor: $x"))
     }
   }
 }

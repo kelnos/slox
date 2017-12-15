@@ -2,7 +2,7 @@ package org.spurint.slox.interpreter.native
 
 import java.io._
 import org.spurint.slox.interpreter.LoxClass
-import org.spurint.slox.interpreter.native.NativeClass.InitializationError
+import org.spurint.slox.interpreter.native.NativeClass.{ExceptionalError, NativeError}
 import scala.util.Try
 
 object FileClass extends NativeClass {
@@ -23,9 +23,9 @@ object FileClass extends NativeClass {
     "size",
   )
 
-  def init(cls: LoxClass, filename: String, mode: String): Either[InitializationError, FileClass] = {
+  def init(cls: LoxClass, filename: String, mode: String): Either[NativeError, FileClass] = {
     Try(new FileClass(cls, filename, mode)).toEither.swap.map(
-      t => InitializationError(nameToken, t.getMessage)
+      t => ExceptionalError(nameToken, t.getMessage)
     ).swap
   }
 

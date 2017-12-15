@@ -10,6 +10,7 @@ package object native {
   )
 
   private val nativeClasses = Seq[(NativeClass, Option[Class[_ <: NativeInstance]])](
+    (ExceptionClass, Some(classOf[ExceptionClass])),
     (ListClass, Some(classOf[ListClass])),
     (FileClass, Some(classOf[FileClass])),
   )

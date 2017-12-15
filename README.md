@@ -84,6 +84,8 @@ each chapter that I've gotten around to implementing so far.
 * I've implemented a fairly-easy way to build builtin classes, and added
   simple `List` and `File` classes, as well as a `System` class with
   some system-related functions.
+* A fairly large departure: I've implemented support for exceptions and
+  try/catch/finally statements.
 * Typical of Scala programs, I eschew using `null` as the internal
   representation of Lox's `nil`, and instead repesent it as a distict
   type of literal.

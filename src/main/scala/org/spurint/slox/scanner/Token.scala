@@ -48,11 +48,13 @@ object Token {
     // Keywords.
     case object And extends ConstLexemeType { val lexeme = "and" }
     case object Break extends ConstLexemeType { val lexeme = "break" }
+    case object Catch extends ConstLexemeType { val lexeme = "catch" }
     case object Class extends ConstLexemeType { val lexeme = "class" }
     case object Continue extends ConstLexemeType { val lexeme = "continue" }
     case object Else extends ConstLexemeType { val lexeme = "else" }
     case object False extends ConstLiteralType { val lexeme = "false"; val literal = BooleanValue(false) }
     case object Fun extends ConstLexemeType { val lexeme = "fun" }
+    case object Finally extends ConstLexemeType { val lexeme = "finally" }
     case object For extends ConstLexemeType { val lexeme = "for" }
     case object If extends ConstLexemeType { val lexeme = "if" }
     case object Nil extends ConstLiteralType { val lexeme = "nil"; val literal = NilValue }
@@ -62,6 +64,7 @@ object Token {
     case object Super extends ConstLexemeType { val lexeme = "super" }
     case object This extends ConstLexemeType { val lexeme = "this" }
     case object True extends ConstLiteralType { val lexeme = "true"; val literal = BooleanValue(true) }
+    case object Try extends ConstLexemeType { val lexeme = "try" }
     case object Var extends ConstLexemeType { val lexeme = "var" }
     case object While extends ConstLexemeType { val lexeme = "while" }
 
